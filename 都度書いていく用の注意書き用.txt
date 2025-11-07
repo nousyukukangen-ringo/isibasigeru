@@ -1,0 +1,2 @@
+pagesの下にloginやmnyu-などのページを管理
+jsの下にmain.jsをいれてそのmain.jsで基本的な機能の管理
