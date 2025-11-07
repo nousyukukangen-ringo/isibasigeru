@@ -10,7 +10,7 @@ const users = [{ email: "test@ex.com", password: "test", kibidango: 0 }];
 
 // --- ミドルウェア ---
 app.use(express.json()); // JSONボディを解釈
-app.use(express.static(__dirname)); // 静的ファイル (index.html など)
+app.use(express.static(__dirname)); 
 app.use("/pages", express.static(path.join(__dirname, "pages"))); // /pages/login.html など読み込み用
 
 // --- ログインAPI ---
