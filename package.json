@@ -1,0 +1,23 @@
+{
+  "name": "isibasigeru",
+  "version": "1.0.0",
+  "description": "政治的グループ",
+  "main": "server2.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nousyukukangen-ringo/isibasigeru.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nousyukukangen-ringo/isibasigeru/issues"
+  },
+  "homepage": "https://github.com/nousyukukangen-ringo/isibasigeru#readme",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
