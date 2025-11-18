@@ -4,27 +4,39 @@
   <meta charset="UTF-8">
   <title>タイトル</title>
   <style>
+    /* 全画面レイアウト用のスタイル */
+    html, body {
+      height: 100%;
+    }
     body {
       background: #f9f9f9;
+      margin: 0;
+      min-height: 100vh;
       display: flex;
       justify-content: center;
-      align-items: center;
-      height: 100vh;
+      align-items: stretch; /* コンテナを縦に伸ばす */
     }
+
+    /* コンテナをビューポート全体に広げる */
     .container {
       background: #fff;
-      border-radius: 40px;
-      box-shadow: 0 0 0 16px #000;
-      width: 350px;
-      padding-bottom: 48px;
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+      box-shadow: none;
+      padding: 0;
       position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: auto;
     }
+
+    /* ヘッダーは上部に固定表示 */
     .header {
-      width:100%;
+      width: 100%;
       background: #ffc107;
-      border-top-left-radius: 40px;
-      border-top-right-radius: 40px;
-      height: 50px;
+      height: 72px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -32,13 +44,19 @@
       font-size: 1.3em;
       font-weight: bold;
       letter-spacing: 0.1em;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
+
+    /* フォームは中央寄せ・レスポンシブ幅 */
     .form-group {
-      margin: 32px 32px 16px 32px;
+      margin: 48px auto 0 auto;
       display: flex;
       flex-direction: column;
       gap: 24px;
+      width: min(560px, 92%);
+      padding-bottom: 48px;
     }
+
     .label-box {
       background: #466eb6;
       color: #FFF;
@@ -50,14 +68,18 @@
       display: flex;
       align-items: center;
       gap: 18px;
+      justify-content: space-between;
     }
+
     .input-field {
-      width: 110px;
+      width: 60%;
+      max-width: 320px;
       border-radius: 5px;
-      padding: 4px;
+      padding: 8px 10px;
       border: none;
       margin-left: 6px;
     }
+
     .btn-signup {
       background: #466eb6;
       color: #fff;
@@ -66,7 +88,7 @@
       border: none;
       margin: 16px auto 0 auto;
       display: block;
-      padding: 10px 36px;
+      padding: 12px 36px;
       cursor: pointer;
       transition: 0.2s;
     }
