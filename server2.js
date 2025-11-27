@@ -1,16 +1,18 @@
 // server2.js
+require("dotenv").config(); // .env から環境変数読み込み
 const express = require("express");
 const session = require("express-session");
 const path = require("path");
 const fs = require("fs-extra");
+const bcrypt = require("bcrypt");
 
 const app = express();
-const port = 3002;
+const port = process.env.PORT || 3002;
 
-// users.json のパス（永続化）
+// users.json のパス
 const USERS_FILE = path.join(__dirname, "users.json");
 
-// 存在しない場合は空配列で作成（テストユーザーは作らない）
+// 存在しない場合は空配列で作成
 if (!fs.existsSync(USERS_FILE)) {
   fs.writeJSONSync(USERS_FILE, []);
   console.log("Created empty users.json");
@@ -20,22 +22,25 @@ if (!fs.existsSync(USERS_FILE)) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// セッション設定（開発用のシンプル設定）
+// セッション設定
 app.use(
   session({
-    secret: "super-secret-key-change-this",
+    secret: process.env.SESSION_SECRET || "super-secret-key-change-this",
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 }, // 1日
+    cookie: {
+      maxAge: 24 * 60 * 60 * 1000, // 1日
+      secure: process.env.COOKIE_SECURE === "true", // HTTPS 環境で true
+    },
   })
 );
 
-// 静的ファイル提供（あなたの構成に合わせる）
-app.use("/js", express.static(path.join(__dirname, "js")));       // main.js 等
-app.use("/pages", express.static(path.join(__dirname, "pages"))); // login.html, signup.html 等
-app.use(express.static(path.join(__dirname))); // その他 root 配下の静的ファイル
+// 静的ファイル提供
+app.use("/js", express.static(path.join(__dirname, "js")));
+app.use("/pages", express.static(path.join(__dirname, "pages")));
+app.use(express.static(path.join(__dirname)));
 
-// ルート: SPA エントリ（index.html を返す）
+// ルート: SPA エントリ
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
@@ -48,23 +53,45 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ success: false, message: "入力必須です" });
     }
 
-    // 管理者の簡易チェック（必要なければ除去可能）
-    if (email === "admin@example.com" && password === "adminpass") {
-      req.session.user = { email, isAdmin: true };
-      return res.json({ success: true, isAdmin: true, user: req.session.user });
-    }
-
     const users = await fs.readJSON(USERS_FILE);
-    const user = users.find((u) => u.email === email && u.password === password);
+    const user = users.find((u) => u.email === email);
 
     if (!user) {
-      return res.status(401).json({ success: false, message: "メールアドレスまたはパスワードが無効です" });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message: "メールアドレスまたはパスワードが無効です",
+        });
     }
 
-    // セッションに保存（必要な情報だけ）
-    req.session.user = { email: user.email, kibidango: user.kibidango || 0, isAdmin: false };
+    // パスワード比較（ハッシュ化済み）
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message: "メールアドレスまたはパスワードが無効です",
+        });
+    }
 
-    return res.json({ success: true, user: req.session.user });
+    // セッション固定攻撃対策: セッション再生成
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error("Session regenerate error:", err);
+        return res
+          .status(500)
+          .json({ success: false, message: "サーバーエラー" });
+      }
+
+      req.session.user = {
+        email: user.email,
+        kibidango: user.kibidango || 0,
+        isAdmin: false,
+      };
+      return res.json({ success: true, user: req.session.user });
+    });
   } catch (err) {
     console.error("Login error:", err);
     return res.status(500).json({ success: false, message: "サーバーエラー" });
@@ -81,15 +108,22 @@ app.post("/api/signup", async (req, res) => {
 
     const users = await fs.readJSON(USERS_FILE);
     if (users.find((u) => u.email === email)) {
-      return res.status(409).json({ success: false, message: "既に使用されています" });
+      return res
+        .status(409)
+        .json({ success: false, message: "既に使用されています" });
     }
 
-    const newUser = { email, password, kibidango: 0 };
+    // パスワードをハッシュ化して保存
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = { email, password: hashedPassword, kibidango: 0 };
     users.push(newUser);
     await fs.writeJSON(USERS_FILE, users, { spaces: 2 });
 
     console.log("New user:", email);
-    return res.json({ success: true, message: "アカウント作成完了！ログインしてください。" });
+    return res.json({
+      success: true,
+      message: "アカウント作成完了！ログインしてください。",
+    });
   } catch (err) {
     console.error("Signup error:", err);
     return res.status(500).json({ success: false, message: "サーバーエラー" });
@@ -107,7 +141,9 @@ app.post("/api/logout", (req, res) => {
   req.session.destroy((err) => {
     if (err) {
       console.error("Session destroy error:", err);
-      return res.status(500).json({ success: false, message: "ログアウトできませんでした" });
+      return res
+        .status(500)
+        .json({ success: false, message: "ログアウトできませんでした" });
     }
     res.json({ success: true });
   });

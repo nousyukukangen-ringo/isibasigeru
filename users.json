@@ -13,5 +13,10 @@
     "email": "inu@inu",
     "password": "inu",
     "kibidango": 0
+  },
+  {
+    "email": "kamonohasi@kamonohasi",
+    "password": "$2b$10$K3oUrGTOGscK9.l7oPEJBOfmra0i016hGagsflBvvNRL2e43L4dES",
+    "kibidango": 0
   }
 ]
