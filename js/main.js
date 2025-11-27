@@ -1,35 +1,29 @@
 document.addEventListener("DOMContentLoaded", () => {
   const appContainer = document.getElementById("app-container");
-  let currentUser = null;
 
-  // --------------------------
+  // ---------------------------
+  // API: /api/me
+  // ---------------------------
+  const fetchMe = async () => {
+    const res = await fetch("/api/me");
+    return res.json();
+  };
+
+  // ---------------------------
   // ログアウト
-  // --------------------------
+  // ---------------------------
   const logout = async () => {
     await fetch("/api/logout", { method: "POST" });
-    currentUser = null;
     window.location.hash = "#login";
   };
 
-  // --------------------------
-  // login ロジック
-  // --------------------------
+  // ---------------------------
+  // LOGIN ページ
+  // ---------------------------
   const initLoginPage = () => {
-    const loginBtn = document.getElementById("login-button");
-    const gotoSignup = document.getElementById("goto-signup");
-
-    gotoSignup.addEventListener("click", () => {
-      window.location.hash = "#signup";
-    });
-
-    loginBtn.addEventListener("click", async () => {
+    document.getElementById("login-button").onclick = async () => {
       const email = document.getElementById("login-email").value;
       const password = document.getElementById("login-password").value;
-
-      if (!email || !password) {
-        alert("メールアドレスとパスワードを入力してください！");
-        return;
-      }
 
       const res = await fetch("/api/login", {
         method: "POST",
@@ -38,107 +32,105 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const result = await res.json();
+      if (!result.success) return alert(result.message);
 
-      if (!result.success) {
-        alert(result.message);
-        return;
-      }
-
-      currentUser = result.user;
-      alert("ログイン成功！");
       window.location.hash = "#map";
-    });
+    };
+
+    document.getElementById("goto-signup").onclick = () => {
+      window.location.hash = "#signup";
+    };
   };
 
-  // --------------------------
-  // signup ロジック
-  // --------------------------
+  // ---------------------------
+  // SIGNUP ページ
+  // ---------------------------
   const initSignupPage = () => {
-    const signupBtn = document.getElementById("signup-button");
-    const gotoLogin = document.getElementById("goto-login");
-
-    gotoLogin.addEventListener("click", () => {
-      window.location.hash = "#login";
-    });
-
-    signupBtn.addEventListener("click", async () => {
+    document.getElementById("signup-button").onclick = async () => {
       const email = document.getElementById("signup-email").value;
-      const pass1 = document.getElementById("signup-password").value;
-      const pass2 = document.getElementById("signup-password2").value;
+      const p1 = document.getElementById("signup-password").value;
+      const p2 = document.getElementById("signup-password2").value;
 
-      if (!email || !pass1 || !pass2) {
-        alert("すべての項目を入力してください！");
-        return;
-      }
-
-      if (pass1 !== pass2) {
-        alert("パスワードが一致しません！");
-        return;
-      }
+      if (p1 !== p2) return alert("パスワードが一致しません");
 
       const res = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: pass1 }),
+        body: JSON.stringify({ email, password: p1 }),
       });
 
       const result = await res.json();
+      if (!result.success) return alert(result.message);
 
-      if (!result.success) {
-        alert(result.message);
-        return;
-      }
-
-      alert("アカウント作成完了！ログインしてください。");
       window.location.hash = "#login";
-    });
+    };
+
+    document.getElementById("goto-login").onclick = () => {
+      window.location.hash = "#login";
+    };
   };
 
-  // --------------------------
-  // map ロジック（ログイン後画面）
-  // --------------------------
+  // ---------------------------
+  // MAP ページ
+  // ---------------------------
   const initMapPage = async () => {
-    const meRes = await fetch("/api/me");
-    const me = await meRes.json();
+    const me = await fetchMe();
+    if (!me.loggedIn) return (window.location.hash = "#login");
 
-    if (!me.loggedIn) {
-      window.location.hash = "#login";
-      return;
-    }
+    // ログアウト
+    document.getElementById("logout-button").onclick = logout;
 
-    currentUser = me.user;
+    // 仮ボタン
+    document.getElementById("goto-sns").onclick = () =>
+      alert("SNSページは後で作ります");
+    document.getElementById("goto-folder").onclick = () =>
+      alert("フォルダページは後で作ります");
 
-    document.getElementById("logout-button").addEventListener("click", logout);
+    // Leaflet JS をロード
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
+
+    script.onload = () => {
+      const map = L.map("map");
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+
+          map.setView([lat, lng], 16);
+
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+          }).addTo(map);
+
+          L.marker([lat, lng]).addTo(map).bindPopup("あなたの現在地");
+        },
+        () => alert("現在地を取得できませんでした")
+      );
+    };
+
+    document.body.appendChild(script);
   };
 
-  // --------------------------
-  // ルーター
-  // --------------------------
+  // ---------------------------
+  // Router
+  // ---------------------------
   const router = async () => {
     const hash = window.location.hash || "#login";
     const page = hash.replace("#", "");
 
     if (page === "login") {
-      const res = await fetch("/pages/login.html");
-      appContainer.innerHTML = await res.text();
+      appContainer.innerHTML = await (await fetch("/pages/login.html")).text();
       initLoginPage();
     } else if (page === "signup") {
-      const res = await fetch("/pages/signup.html");
-      appContainer.innerHTML = await res.text();
+      appContainer.innerHTML = await (await fetch("/pages/signup.html")).text();
       initSignupPage();
     } else if (page === "map") {
-      const meRes = await fetch("/api/me");
-      const me = await meRes.json();
-      if (!me.loggedIn) {
-        window.location.hash = "#login";
-        return;
-      }
-      appContainer.innerHTML = `
-        <div class="map-page">
-          <h2>ようこそ ${me.user.email} さん</h2>
-          <p>きびだんご: ${me.user.kibidango}</p>
-          <button id="logout-button">ログアウト</button>
-        </div>`;
+      const me = await fetchMe();
+      if (!me.loggedIn) return (window.location.hash = "#login");
+
+      appContainer.innerHTML = await (await fetch("/pages/map.html")).text();
       initMapPage();
     }
   };
