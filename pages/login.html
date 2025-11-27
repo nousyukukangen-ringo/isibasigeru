@@ -131,27 +131,23 @@
       html,
       body {
         height: 100%;
+        margin: 0;
       }
       body {
         background: #f9f9f9;
-        margin: 0;
-        min-height: 100vh;
         display: flex;
         justify-content: center;
-        align-items: stretch;
+        align-items: center;
+        font-family: sans-serif;
       }
-
       .container {
         background: #fff;
         width: 100vw;
         height: 100vh;
-        padding: 0;
-        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
       }
-
       .header {
         width: 100%;
         background: #ffc107;
@@ -162,19 +158,16 @@
         color: #fff;
         font-size: 1.3em;
         font-weight: bold;
-        letter-spacing: 0.1em;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
       }
-
       .form-group {
-        margin: 48px auto 0 auto;
+        margin-top: 48px;
         display: flex;
         flex-direction: column;
         gap: 24px;
         width: min(560px, 92%);
         padding-bottom: 48px;
       }
-
       .label-box {
         background: #466eb6;
         color: #fff;
@@ -186,7 +179,6 @@
         justify-content: space-between;
         gap: 18px;
       }
-
       .input-field {
         width: 60%;
         max-width: 320px;
@@ -194,7 +186,6 @@
         padding: 8px 10px;
         border: none;
       }
-
       .btn-signup {
         background: #466eb6;
         color: #fff;
@@ -210,41 +201,40 @@
       .btn-signup:hover {
         background: #385c92;
       }
+      .btn-secondary {
+        background: #888 !important;
+      }
     </style>
   </head>
-
   <body>
-    <div class="container">
+    <div class="container" id="app-container">
       <div class="header">ログイン</div>
-
-      <!-- ▼ main.js が読み取る login-form ▼ -->
-      <form id="login-form" class="form-group">
+      <div class="form-group">
         <div class="label-box">
-          メアド
+          メールアドレス
           <input
+            id="login-email"
             class="input-field"
             type="email"
-            name="email"
             placeholder="入力欄"
-            required
           />
         </div>
-
         <div class="label-box">
           パスワード
           <input
+            id="login-password"
             class="input-field"
             type="password"
-            name="password"
             placeholder="入力欄"
-            required
           />
         </div>
-
-        <!-- ボタンは submit -->
-        <button type="submit" class="btn-signup">ログイン</button>
-      </form>
+        <button id="login-button" class="btn-signup">ログイン</button>
+        <button id="goto-signup" class="btn-signup btn-secondary">
+          新規登録はこちら
+        </button>
+      </div>
     </div>
+    <script src="/js/main.js"></script>
   </body>
 >>>>>>> 3322ac73486ef7d1ca033d21a973f46b2361c875
 </html>
