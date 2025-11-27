@@ -1,22 +1,28 @@
-// server2.js
-require("dotenv").config(); // .env から環境変数読み込み
+require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
 const path = require("path");
-const fs = require("fs-extra");
 const bcrypt = require("bcrypt");
+const Database = require("better-sqlite3");
 
 const app = express();
 const port = process.env.PORT || 3002;
 
-// users.json のパス
-const USERS_FILE = path.join(__dirname, "users.json");
+// SQLite DB のパス
+const DB_FILE = path.join(__dirname, "users.db");
+const db = new Database(DB_FILE);
 
-// 存在しない場合は空配列で作成
-if (!fs.existsSync(USERS_FILE)) {
-  fs.writeJSONSync(USERS_FILE, []);
-  console.log("Created empty users.json");
-}
+// テーブル作成（存在しなければ）
+db.prepare(
+  `
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    kibidango INTEGER DEFAULT 0
+  )
+`
+).run();
 
 // ミドルウェア
 app.use(express.json());
@@ -29,8 +35,8 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 24 * 60 * 60 * 1000, // 1日
-      secure: process.env.COOKIE_SECURE === "true", // HTTPS 環境で true
+      maxAge: 24 * 60 * 60 * 1000,
+      secure: process.env.COOKIE_SECURE === "true",
     },
   })
 );
@@ -40,7 +46,7 @@ app.use("/js", express.static(path.join(__dirname, "js")));
 app.use("/pages", express.static(path.join(__dirname, "pages")));
 app.use(express.static(path.join(__dirname)));
 
-// ルート: SPA エントリ
+// ルート: SPA
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
@@ -49,12 +55,11 @@ app.get("/", (req, res) => {
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
+    if (!email || !password)
       return res.status(400).json({ success: false, message: "入力必須です" });
-    }
 
-    const users = await fs.readJSON(USERS_FILE);
-    const user = users.find((u) => u.email === email);
+    const stmt = db.prepare("SELECT * FROM users WHERE email = ?");
+    const user = stmt.get(email);
 
     if (!user) {
       return res
@@ -65,7 +70,6 @@ app.post("/api/login", async (req, res) => {
         });
     }
 
-    // パスワード比較（ハッシュ化済み）
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
       return res
@@ -76,7 +80,7 @@ app.post("/api/login", async (req, res) => {
         });
     }
 
-    // セッション固定攻撃対策: セッション再生成
+    // セッション固定攻撃対策
     req.session.regenerate((err) => {
       if (err) {
         console.error("Session regenerate error:", err);
@@ -87,7 +91,7 @@ app.post("/api/login", async (req, res) => {
 
       req.session.user = {
         email: user.email,
-        kibidango: user.kibidango || 0,
+        kibidango: user.kibidango,
         isAdmin: false,
       };
       return res.json({ success: true, user: req.session.user });
@@ -102,22 +106,21 @@ app.post("/api/login", async (req, res) => {
 app.post("/api/signup", async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
+    if (!email || !password)
       return res.status(400).json({ success: false, message: "入力必須です" });
-    }
 
-    const users = await fs.readJSON(USERS_FILE);
-    if (users.find((u) => u.email === email)) {
+    const existsStmt = db.prepare("SELECT * FROM users WHERE email = ?");
+    if (existsStmt.get(email)) {
       return res
         .status(409)
         .json({ success: false, message: "既に使用されています" });
     }
 
-    // パスワードをハッシュ化して保存
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = { email, password: hashedPassword, kibidango: 0 };
-    users.push(newUser);
-    await fs.writeJSON(USERS_FILE, users, { spaces: 2 });
+    const insertStmt = db.prepare(
+      "INSERT INTO users (email, password, kibidango) VALUES (?, ?, 0)"
+    );
+    insertStmt.run(email, hashedPassword);
 
     console.log("New user:", email);
     return res.json({
