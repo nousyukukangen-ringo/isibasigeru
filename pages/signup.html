@@ -2,13 +2,9 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <title>ログイン</title>
+    <title>新規登録</title>
     <style>
-      html,
-      body {
-        height: 100%;
-        margin: 0;
-      }
+      html, body { height: 100%; margin: 0; }
       body {
         background: #f9f9f9;
         display: flex;
@@ -34,7 +30,7 @@
         color: #fff;
         font-size: 1.3em;
         font-weight: bold;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
       }
       .form-group {
         margin-top: 48px;
@@ -84,30 +80,22 @@
   </head>
   <body>
     <div class="container" id="app-container">
-      <div class="header">ログイン</div>
+      <div class="header">新規登録</div>
       <div class="form-group">
         <div class="label-box">
           メールアドレス
-          <input
-            id="login-email"
-            class="input-field"
-            type="email"
-            placeholder="入力欄"
-          />
+          <input id="signup-email" class="input-field" type="email" placeholder="入力欄" />
         </div>
         <div class="label-box">
           パスワード
-          <input
-            id="login-password"
-            class="input-field"
-            type="password"
-            placeholder="入力欄"
-          />
+          <input id="signup-password" class="input-field" type="password" placeholder="入力欄" />
         </div>
-        <button id="login-button" class="btn-signup">ログイン</button>
-        <button id="goto-signup" class="btn-signup btn-secondary">
-          新規登録はこちら
-        </button>
+        <div class="label-box">
+          パスワード（確認用）
+          <input id="signup-password2" class="input-field" type="password" placeholder="もう一度入力" />
+        </div>
+        <button id="signup-button" class="btn-signup">登録</button>
+        <button id="goto-login" class="btn-signup btn-secondary">ログイン画面へ戻る</button>
       </div>
     </div>
     <script src="/js/main.js"></script>

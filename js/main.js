@@ -1,86 +1,145 @@
 document.addEventListener("DOMContentLoaded", () => {
   const appContainer = document.getElementById("app-container");
-  let currentUser = null; // { email, isAdmin, kibidango }
+  let currentUser = null;
 
-  // --- ログアウト処理 ---
-  const logout = () => {
+  // --------------------------
+  // ログアウト
+  // --------------------------
+  const logout = async () => {
+    await fetch("/api/logout", { method: "POST" });
     currentUser = null;
     window.location.hash = "#login";
   };
 
-  // --- ログインページ初期化 ---
+  // --------------------------
+  // login ロジック
+  // --------------------------
   const initLoginPage = () => {
-    const loginForm = document.getElementById("login-form");
-    if (!loginForm) return;
+    const loginBtn = document.getElementById("login-button");
+    const gotoSignup = document.getElementById("goto-signup");
 
-    loginForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const email = event.target.email.value;
-      const password = event.target.password.value;
+    gotoSignup.addEventListener("click", () => {
+      window.location.hash = "#signup";
+    });
 
-      try {
-        const response = await fetch("/api/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        });
+    loginBtn.addEventListener("click", async () => {
+      const email = document.getElementById("login-email").value;
+      const password = document.getElementById("login-password").value;
 
-        const result = await response.json();
-
-        if (result.success) {
-          currentUser = {
-            email,
-            isAdmin: result.isAdmin,
-            kibidango: (result.user && result.user.kibidango) || 0,
-          };
-
-          alert("ログイン成功");
-          window.location.hash = "#map";
-        } else {
-          alert(`ログイン失敗: ${result.message}`);
-        }
-      } catch (error) {
-        console.error("Login error:", error);
-        alert("ログイン処理中にエラーが発生しました。");
+      if (!email || !password) {
+        alert("メールアドレスとパスワードを入力してください！");
+        return;
       }
+
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const result = await res.json();
+
+      if (!result.success) {
+        alert(result.message);
+        return;
+      }
+
+      currentUser = result.user;
+      alert("ログイン成功！");
+      window.location.hash = "#map";
     });
   };
 
-  // --- 簡易マップページ（ログイン成功後に遷移） ---
-  const initMapPage = () => {
-    appContainer.innerHTML = `
-            <div class="map-page">
-                <h2>ようこそ ${currentUser?.email || "ゲスト"} さん</h2>
-                <p>ログインに成功しました。</p>
-                <button id="logout-button">ログアウト</button>
-            </div>
-        `;
+  // --------------------------
+  // signup ロジック
+  // --------------------------
+  const initSignupPage = () => {
+    const signupBtn = document.getElementById("signup-button");
+    const gotoLogin = document.getElementById("goto-login");
+
+    gotoLogin.addEventListener("click", () => {
+      window.location.hash = "#login";
+    });
+
+    signupBtn.addEventListener("click", async () => {
+      const email = document.getElementById("signup-email").value;
+      const pass1 = document.getElementById("signup-password").value;
+      const pass2 = document.getElementById("signup-password2").value;
+
+      if (!email || !pass1 || !pass2) {
+        alert("すべての項目を入力してください！");
+        return;
+      }
+
+      if (pass1 !== pass2) {
+        alert("パスワードが一致しません！");
+        return;
+      }
+
+      const res = await fetch("/api/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: pass1 }),
+      });
+
+      const result = await res.json();
+
+      if (!result.success) {
+        alert(result.message);
+        return;
+      }
+
+      alert("アカウント作成完了！ログインしてください。");
+      window.location.hash = "#login";
+    });
+  };
+
+  // --------------------------
+  // map ロジック（ログイン後画面）
+  // --------------------------
+  const initMapPage = async () => {
+    const meRes = await fetch("/api/me");
+    const me = await meRes.json();
+
+    if (!me.loggedIn) {
+      window.location.hash = "#login";
+      return;
+    }
+
+    currentUser = me.user;
+
     document.getElementById("logout-button").addEventListener("click", logout);
   };
 
-  // --- ルーター処理 ---
+  // --------------------------
+  // ルーター
+  // --------------------------
   const router = async () => {
     const hash = window.location.hash || "#login";
     const page = hash.replace("#", "");
 
     if (page === "login") {
-      try {
-        const response = await fetch("pages/login.html");
-        const html = await response.text();
-        appContainer.innerHTML = html;
-        initLoginPage();
-      } catch (error) {
-        appContainer.innerHTML = "<p>login.html の読み込みに失敗しました。</p>";
-      }
+      const res = await fetch("/pages/login.html");
+      appContainer.innerHTML = await res.text();
+      initLoginPage();
+    } else if (page === "signup") {
+      const res = await fetch("/pages/signup.html");
+      appContainer.innerHTML = await res.text();
+      initSignupPage();
     } else if (page === "map") {
-      if (!currentUser) {
-        alert("ログインしていません。");
+      const meRes = await fetch("/api/me");
+      const me = await meRes.json();
+      if (!me.loggedIn) {
         window.location.hash = "#login";
         return;
       }
+      appContainer.innerHTML = `
+        <div class="map-page">
+          <h2>ようこそ ${me.user.email} さん</h2>
+          <p>きびだんご: ${me.user.kibidango}</p>
+          <button id="logout-button">ログアウト</button>
+        </div>`;
       initMapPage();
-    } else {
-      appContainer.innerHTML = "<h2>404 - ページが見つかりません</h2>";
     }
   };
 
