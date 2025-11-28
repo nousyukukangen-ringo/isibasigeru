@@ -11,6 +11,35 @@
   <!-- 地図表示エリア -->
   <div id="map"></div>
 
+  <!-- 撮影UI -->
+  <div class="camera-section">
+
+    <!-- カメラ映像 -->
+    <video id="camera-video" class="camera-video" autoplay playsinline></video>
+
+    <!-- 撮影用キャンバス（非表示） -->
+    <canvas id="camera-canvas" class="hidden"></canvas>
+
+    <!-- カメラ起動ボタン（最初だけ表示） -->
+    <button id="camera-start" class="camera-btn blue-btn">
+      📷 カメラを起動
+    </button>
+
+    <!-- 撮影ボタン（カメラ起動後に表示） -->
+    <button id="camera-shoot" class="camera-btn green-btn hidden">
+      📸 撮影
+    </button>
+  </div>
+
+  <!-- 小さい AR プレビュー枠 -->
+  <div id="ar-preview" class="ar-preview hidden">
+    <h3 class="ar-title">撮影画像プレビュー</h3>
+    <div id="ar-image" class="ar-image"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button id="ar-close" class="close-btn">閉じる</button>
+    </div>
+  </div>
+
   <!-- メニュー -->
   <div class="menu-section">
     <button id="goto-sns" class="menu-btn">SNS</button>
@@ -25,10 +54,18 @@
 </div>
 
 <style>
-.page-wrapper {
+/* 画面高を正しく使うため */
+html, body {
   height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.page-wrapper {
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 .header {
@@ -39,14 +76,74 @@
   font-weight: bold;
 }
 
-/* ← 地図が見えない原因はほぼココ */
+/* 地図：スマホで画面を圧迫しすぎない */
 #map {
   width: 100%;
-  height: 55vh;  /* ← この高さ必須 */
+  height: 45vh;
+  max-height: 420px;
   margin: 10px 0;
   border-radius: 10px;
 }
 
+/* 撮影UI */
+.camera-section {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+/* カメラ映像 */
+.camera-video {
+  width: 92%;
+  max-width: 420px;
+  border-radius: 10px;
+  display: none;
+}
+
+/* 撮影ボタン */
+.camera-btn {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 18px;
+  margin-top: 8px;
+  cursor: pointer;
+}
+
+.blue-btn { background: #2E6FBA; }
+.green-btn { background: #2ebd70; }
+
+.hidden { display: none; }
+
+/* ARプレビュー */
+.ar-preview {
+  width: 92%;
+  margin: 0 auto 12px auto;
+  padding: 12px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+}
+
+.ar-image {
+  width: 100%;
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.close-btn {
+  background: #ff5a5a;
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* メニュー */
 .menu-section {
   display: flex;
   justify-content: space-around;
@@ -63,6 +160,7 @@
   font-size: 18px;
 }
 
+/* フッター */
 .footer {
   padding: 15px;
   text-align: center;
