@@ -186,6 +186,64 @@ app.post("/api/logout", (req, res) => {
 });
 
 
+// photos テーブルに title カラム追加（既存テーブル対応）
+const columns = db.prepare("PRAGMA table_info(photos)").all();
+if (!columns.find(c => c.name === "title")) {
+  db.prepare(`ALTER TABLE photos ADD COLUMN title TEXT`).run();
+}
+
+// API: 写真アップロード
+app.post("/api/photo/upload", upload.single("image"), (req, res) => {
+  if (!req.session.user)
+    return res.status(401).json({ success: false, message: "ログインしてください" });
+
+  if (!req.file)
+    return res.status(400).json({ success: false, message: "画像がありません" });
+
+  const { lat, lng, title } = req.body;
+  const filepath = "/uploads/" + req.file.filename;
+
+  const info = db.prepare(
+    `INSERT INTO photos (user_email, filepath, latitude, longitude, title, created_at)
+     VALUES (?, ?, ?, ?, ?, datetime('now'))`
+  ).run(req.session.user.email, filepath, lat, lng, title || "");
+
+  res.json({ success: true, filepath, id: info.lastInsertRowid });
+});
+
+// API: 写真一覧
+app.get("/api/photo/list", (req, res) => {
+  if (!req.session.user)
+    return res.status(401).json({ success: false, message: "ログインしてください" });
+
+  const rows = db.prepare(
+    `SELECT id, filepath, latitude, longitude, title, created_at
+     FROM photos
+     WHERE user_email = ?
+     ORDER BY created_at DESC`
+  ).all(req.session.user.email);
+
+  res.json({ success: true, photos: rows });
+});
+
+// 復元処理
+const loadPhotos = async () => {
+  const res = await fetch("/api/photo/list");
+  const j = await res.json();
+  if (!j.success) return;
+
+  j.photos.forEach((p) => {
+    const marker = L.marker([p.latitude, p.longitude]).addTo(map);
+    marker.bindPopup(p.title || "");
+    marker.on("click", () => {
+      arImage.style.backgroundImage = `url(${p.filepath})`;
+      arPreview.classList.remove("hidden");
+    });
+    markersById.set(p.id, { marker, data: p });
+  });
+};
+
+
 // -------------------------------------------------------
 // ★ API: 写真アップロード
 // -------------------------------------------------------

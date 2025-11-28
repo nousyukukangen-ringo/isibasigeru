@@ -1,4 +1,4 @@
-<!-- Leaflet CSS（必須） -->
+<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
 <div class="page-wrapper">
@@ -8,30 +8,30 @@
     <h2>MAP</h2>
   </header>
 
-  <!-- 地図表示エリア -->
+  <!-- 地図表示 -->
   <div id="map"></div>
 
-  <!-- 撮影UI -->
+  <!-- 撮影セクション -->
   <div class="camera-section">
-
     <!-- カメラ映像 -->
     <video id="camera-video" class="camera-video" autoplay playsinline></video>
-
-    <!-- 撮影用キャンバス（非表示） -->
     <canvas id="camera-canvas" class="hidden"></canvas>
 
-    <!-- カメラ起動ボタン（最初だけ表示） -->
-    <button id="camera-start" class="camera-btn blue-btn">
-      📷 カメラを起動
-    </button>
-
-    <!-- 撮影ボタン（カメラ起動後に表示） -->
-    <button id="camera-shoot" class="camera-btn green-btn hidden">
-      📸 撮影
-    </button>
+    <!-- ボタン群 -->
+    <div style="margin-top: 8px;">
+      <button id="camera-start" class="camera-btn blue-btn">📷 カメラを起動</button>
+      <button id="camera-shoot" class="camera-btn green-btn hidden">📸 撮影</button>
+      <button id="camera-close" class="camera-btn red-btn hidden">❌ 閉じる</button>
+    </div>
   </div>
 
-  <!-- 小さい AR プレビュー枠 -->
+  <!-- タイトル入力セクション -->
+  <div id="title-section" class="hidden" style="text-align:center; margin-bottom:10px;">
+    <input type="text" id="photo-title" placeholder="タイトルを入力" style="padding:6px 8px; width:70%; border-radius:6px; border:1px solid #ccc;">
+    <button id="save-title" class="camera-btn green-btn">保存</button>
+  </div>
+
+  <!-- ARプレビュー -->
   <div id="ar-preview" class="ar-preview hidden">
     <h3 class="ar-title">撮影画像プレビュー</h3>
     <div id="ar-image" class="ar-image"></div>
@@ -54,125 +54,29 @@
 </div>
 
 <style>
-/* 画面高を正しく使うため */
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
+html, body { height: 100%; margin: 0; padding:0; }
+.page-wrapper { height: 100vh; display:flex; flex-direction:column; box-sizing:border-box; }
+.header { background:#FFC107; padding:12px; text-align:center; font-size:22px; font-weight:bold; }
 
-.page-wrapper {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+#map { width:100%; height:45vh; max-height:420px; margin:10px 0; border-radius:10px; }
 
-.header {
-  background: #FFC107;
-  padding: 12px;
-  text-align: center;
-  font-size: 22px;
-  font-weight: bold;
-}
+.camera-section { text-align:center; margin-bottom:10px; }
+.camera-video { width:92%; max-width:420px; border-radius:10px; display:none; }
+.camera-btn { padding:10px 22px; border:none; border-radius:8px; color:#fff; font-size:18px; margin-top:8px; cursor:pointer; }
+.blue-btn { background:#2E6FBA; }
+.green-btn { background:#2ebd70; }
+.red-btn { background:#f44336; }
+.hidden { display:none; }
 
-/* 地図：スマホで画面を圧迫しすぎない */
-#map {
-  width: 100%;
-  height: 45vh;
-  max-height: 420px;
-  margin: 10px 0;
-  border-radius: 10px;
-}
+.ar-preview { width:92%; margin:0 auto 12px auto; padding:12px; background:#fff; border-radius:10px; border:1px solid #ddd; }
+.ar-image { width:100%; height:180px; background-size:cover; background-position:center; border-radius:8px; margin-bottom:8px; }
+.close-btn { background:#ff5a5a; color:#fff; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; }
 
-/* 撮影UI */
-.camera-section {
-  text-align: center;
-  margin-bottom: 10px;
-}
+.menu-section { display:flex; justify-content:space-around; margin:15px 0; }
+.menu-btn { width:40%; padding:15px; border:none; border-radius:10px; background:#2E6FBA; color:white; font-size:18px; }
 
-/* カメラ映像 */
-.camera-video {
-  width: 92%;
-  max-width: 420px;
-  border-radius: 10px;
-  display: none;
-}
+.footer { padding:15px; text-align:center; }
+.logout-btn { width:90%; padding:14px; background:#ff5a5a; color:white; border:none; border-radius:10px; font-size:18px; }
 
-/* 撮影ボタン */
-.camera-btn {
-  padding: 10px 22px;
-  border: none;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 18px;
-  margin-top: 8px;
-  cursor: pointer;
-}
-
-.blue-btn { background: #2E6FBA; }
-.green-btn { background: #2ebd70; }
-
-.hidden { display: none; }
-
-/* ARプレビュー */
-.ar-preview {
-  width: 92%;
-  margin: 0 auto 12px auto;
-  padding: 12px;
-  background: #fff;
-  border-radius: 10px;
-  border: 1px solid #ddd;
-}
-
-.ar-image {
-  width: 100%;
-  height: 180px;
-  background-size: cover;
-  background-position: center;
-  border-radius: 8px;
-  margin-bottom: 8px;
-}
-
-.close-btn {
-  background: #ff5a5a;
-  color: #fff;
-  border: none;
-  padding: 8px 18px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-/* メニュー */
-.menu-section {
-  display: flex;
-  justify-content: space-around;
-  margin: 15px 0;
-}
-
-.menu-btn {
-  width: 40%;
-  padding: 15px;
-  border: none;
-  border-radius: 10px;
-  background: #2E6FBA;
-  color: white;
-  font-size: 18px;
-}
-
-/* フッター */
-.footer {
-  padding: 15px;
-  text-align: center;
-}
-
-.logout-btn {
-  width: 90%;
-  padding: 14px;
-  background: #ff5a5a;
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 18px;
-}
+#title-section input { font-size:16px; }
 </style>

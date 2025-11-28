@@ -70,9 +70,9 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   };
 
-  // -----------------------------------------------------
-  // MAPページ（撮影機能＋ピン＋ARプレビュー＋復元）
-  // -----------------------------------------------------
+  // ---------------------------
+  // MAPページ
+  // ---------------------------
   const initMapPage = async () => {
     const me = await fetchMe();
     if (!me.loggedIn) return (window.location.hash = "#login");
@@ -86,19 +86,14 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("goto-folder").onclick = () =>
       alert("フォルダページは後で作ります");
 
-    // Leaflet ロード
+    // Leaflet
     const script = document.createElement("script");
     script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
 
     script.onload = () => {
       const map = L.map("map");
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
-      // ベースレイヤー
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-      }).addTo(map);
-
-      // 現在地にカメラを移動
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = pos.coords.latitude;
@@ -109,132 +104,149 @@ document.addEventListener("DOMContentLoaded", () => {
         () => alert("現在地を取得できませんでした")
       );
 
-      // ---- 撮影UIの要素 ----
-      const video = document.getElementById("camera-video");
-      const canvas = document.getElementById("camera-canvas");
-      const cameraStart = document.getElementById("camera-start");
-      const cameraShoot = document.getElementById("camera-shoot");
-
+      // ---------------------------
+      // 要素
+      // ---------------------------
+      const cameraVideo = document.getElementById("camera-video");
+      const cameraCanvas = document.getElementById("camera-canvas");
+      const startBtn = document.getElementById("camera-start");
+      const shootBtn = document.getElementById("camera-shoot");
+      const closeBtn = document.getElementById("camera-close");
+      const titleSection = document.getElementById("title-section");
+      const photoTitleInput = document.getElementById("photo-title");
+      const saveTitleBtn = document.getElementById("save-title");
       const arPreview = document.getElementById("ar-preview");
       const arImage = document.getElementById("ar-image");
       const arClose = document.getElementById("ar-close");
 
-      let stream = null;
+      let stream;
+      let currentPhotoData = null;
+      let currentLatLng = null;
+      let markersById = new Map();
 
-      // ---------------------------------------------
-      // カメラ起動（あなたが提示したコードを統合）
-      // ---------------------------------------------
-      async function startCamera() {
+      // ---------------------------
+      // カメラ起動
+      // ---------------------------
+      startBtn.onclick = async () => {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: "environment",
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-            },
+            video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
             audio: false,
           });
-
-          video.srcObject = stream;
-          video.style.display = "block";
-          video.play();
-          cameraShoot.style.display = "inline-block";
+          cameraVideo.srcObject = stream;
+          cameraVideo.style.display = "block";
+          shootBtn.classList.remove("hidden");
+          closeBtn.classList.remove("hidden");
+          startBtn.classList.add("hidden");
         } catch (err) {
           alert("カメラを使用できません: " + err.message);
         }
-      }
+      };
 
-      // ---------------------------------------------
-      // 撮影（あなたが提示したコードを統合）
-      // ---------------------------------------------
-      function takePhoto() {
-        const ctx = canvas.getContext("2d");
+      // ---------------------------
+      // カメラ閉じる
+      // ---------------------------
+      closeBtn.onclick = () => {
+        if (stream) {
+          stream.getTracks().forEach((t) => t.stop());
+        }
+        cameraVideo.style.display = "none";
+        shootBtn.classList.add("hidden");
+        closeBtn.classList.add("hidden");
+        startBtn.classList.remove("hidden");
+      };
 
-        // 解像度固定
-        canvas.width = 1920;
-        canvas.height = 1080;
+      // ---------------------------
+      // 撮影
+      // ---------------------------
+      shootBtn.onclick = () => {
+        cameraCanvas.width = 1920;
+        cameraCanvas.height = 1080;
+        const ctx = cameraCanvas.getContext("2d");
+        ctx.drawImage(cameraVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
+        currentPhotoData = cameraCanvas.toDataURL("image/jpeg", 0.9);
 
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            currentLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            // カメラUI閉じる
+            closeBtn.onclick();
+            // タイトル入力表示
+            titleSection.classList.remove("hidden");
+            photoTitleInput.value = "";
+          },
+          () => alert("撮影位置の取得に失敗しました")
+        );
+      };
 
-        const imageData = canvas.toDataURL("image/jpeg", 0.9);
-        return imageData;
-      }
+// タイトル保存
+saveTitleBtn.onclick = async () => {
+  const title = photoTitleInput.value.trim();
+  if (!currentPhotoData) return alert("写真がありません");
+  if (!title) return alert("タイトルを入力してください");
 
-      // ---------------------------------------------
-      // 撮影後 → ピン → サーバー保存 → プレビュー
-      // ---------------------------------------------
-      async function onTakePhoto() {
-        const imageData = takePhoto();
+  const fd = new FormData();
+  const blob = await (await fetch(currentPhotoData)).blob();
+  fd.append("image", blob, "photo.jpg");
+  fd.append("lat", currentLatLng.lat);
+  fd.append("lng", currentLatLng.lng);
+  fd.append("title", title);
 
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
+  const res = await fetch("/api/photo/upload", { method: "POST", body: fd });
+  const j = await res.json();
+  if (!j.success) return alert(j.message || "保存失敗");
 
-          // ピン設置
-          const marker = L.marker([lat, lng]).addTo(map);
-          marker.on("click", () => {
-            arImage.style.backgroundImage = `url(${imageData})`;
-            arPreview.classList.remove("hidden");
-          });
+  // マーカー追加
+  const marker = L.marker([currentLatLng.lat, currentLatLng.lng]).addTo(map);
+  marker.bindPopup(title); // マウスオーバーでタイトル表示
+  marker.on("click", () => {
+    arImage.style.backgroundImage = `url(${j.filepath})`;
+    arPreview.classList.remove("hidden");
+  });
 
-          // base64 → Blob
-          const blob = await (await fetch(imageData)).blob();
+  markersById.set(j.id, { marker, data: { title, filepath: j.filepath } });
 
-          const fd = new FormData();
-          fd.append("image", blob, "photo.jpg");
-          fd.append("lat", lat);
-          fd.append("lng", lng);
+  // タイトル入力非表示
+  titleSection.classList.add("hidden");
+  currentPhotoData = null;
+  currentLatLng = null;
+};
 
-          await fetch("/api/photo/upload", {
-            method: "POST",
-            body: fd,
-          });
-
-          alert("保存しました");
-        });
-      }
-
-      // ---------------------------------------------
-      // イベント登録
-      // ---------------------------------------------
-      cameraStart.onclick = startCamera;
-      cameraShoot.onclick = onTakePhoto;
-
+      // ---------------------------
+      // AR閉じる
+      // ---------------------------
       arClose.onclick = () => {
         arPreview.classList.add("hidden");
       };
 
-      // ---------------------------------------------
-      // マーカー復元
-      // ---------------------------------------------
-      async function restoreMarkers() {
+      // ---------------------------
+      // 写真復元
+      // ---------------------------
+      const loadPhotos = async () => {
         const res = await fetch("/api/photo/list");
         const j = await res.json();
         if (!j.success) return;
-
         j.photos.forEach((p) => {
           const marker = L.marker([p.latitude, p.longitude]).addTo(map);
+          marker.bindPopup(p.title || "");
           marker.on("click", () => {
             arImage.style.backgroundImage = `url(${p.filepath})`;
             arPreview.classList.remove("hidden");
           });
+          markersById.set(p.id, { marker, data: p });
         });
-      }
+      };
+      loadPhotos();
 
-      restoreMarkers();
-
-      // ---------------------------------------------
-      // 擬似AR（端末の傾きで画像を動かす）
-      // ---------------------------------------------
+      // ---------------------------
+      // 擬似AR
+      // ---------------------------
       window.addEventListener("deviceorientation", (event) => {
         if (arPreview.classList.contains("hidden")) return;
-
         const gamma = event.gamma ?? 0;
         const beta = event.beta ?? 0;
-
         const x = ((beta + 90) / 180) * 100;
         const y = ((gamma + 45) / 90) * 100;
-
         arImage.style.backgroundPosition = `${x}% ${y}%`;
       });
     };
@@ -258,7 +270,6 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (page === "map") {
       const me = await fetchMe();
       if (!me.loggedIn) return (window.location.hash = "#login");
-
       appContainer.innerHTML = await (await fetch("/pages/map.html")).text();
       initMapPage();
     }
