@@ -17,17 +17,20 @@ const DB_FILE = path.join(__dirname, "users.db");
 const db = new Database(DB_FILE);
 
 // users テーブル
-db.prepare(`
+db.prepare(
+  `
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     kibidango INTEGER DEFAULT 0
   )
-`).run();
+`
+).run();
 
 // photos テーブル
-db.prepare(`
+db.prepare(
+  `
   CREATE TABLE IF NOT EXISTS photos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_email TEXT,
@@ -36,8 +39,8 @@ db.prepare(`
     longitude REAL,
     created_at TEXT
   )
-`).run();
-
+`
+).run();
 
 // ----------------------------------
 // ミドルウェア
@@ -63,7 +66,6 @@ app.use("/pages", express.static(path.join(__dirname, "pages")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(express.static(path.join(__dirname)));
 
-
 // ----------------------------------
 // multer 設定（アップロード）
 // ----------------------------------
@@ -86,14 +88,12 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-
 // ----------------------------------
 // SPA ルート
 // ----------------------------------
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
-
 
 // ----------------------------------
 // API: login
@@ -110,17 +110,25 @@ app.post("/api/login", async (req, res) => {
     if (!user)
       return res
         .status(401)
-        .json({ success: false, message: "メールアドレスまたはパスワードが無効です" });
+        .json({
+          success: false,
+          message: "メールアドレスまたはパスワードが無効です",
+        });
 
     const match = await bcrypt.compare(password, user.password);
     if (!match)
       return res
         .status(401)
-        .json({ success: false, message: "メールアドレスまたはパスワードが無効です" });
+        .json({
+          success: false,
+          message: "メールアドレスまたはパスワードが無効です",
+        });
 
     req.session.regenerate((err) => {
       if (err)
-        return res.status(500).json({ success: false, message: "サーバーエラー" });
+        return res
+          .status(500)
+          .json({ success: false, message: "サーバーエラー" });
 
       req.session.user = {
         email: user.email,
@@ -135,7 +143,6 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-
 // ----------------------------------
 // API: signup
 // ----------------------------------
@@ -148,7 +155,9 @@ app.post("/api/signup", async (req, res) => {
 
     const exists = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
     if (exists)
-      return res.status(409).json({ success: false, message: "既に使用されています" });
+      return res
+        .status(409)
+        .json({ success: false, message: "既に使用されています" });
 
     const hashed = await bcrypt.hash(password, 10);
 
@@ -156,13 +165,15 @@ app.post("/api/signup", async (req, res) => {
       "INSERT INTO users (email, password, kibidango) VALUES (?, ?, 0)"
     ).run(email, hashed);
 
-    res.json({ success: true, message: "アカウント作成完了！ログインしてください。" });
+    res.json({
+      success: true,
+      message: "アカウント作成完了！ログインしてください。",
+    });
   } catch (err) {
     console.error("Signup error:", err);
     res.status(500).json({ success: false, message: "サーバーエラー" });
   }
 });
-
 
 // ----------------------------------
 // API: me
@@ -172,41 +183,47 @@ app.get("/api/me", (req, res) => {
   res.json({ loggedIn: true, user: req.session.user });
 });
 
-
 // ----------------------------------
 // API: logout
 // ----------------------------------
 app.post("/api/logout", (req, res) => {
   req.session.destroy((err) => {
     if (err)
-      return res.status(500).json({ success: false, message: "ログアウトできませんでした" });
+      return res
+        .status(500)
+        .json({ success: false, message: "ログアウトできませんでした" });
 
     res.json({ success: true });
   });
 });
 
-
 // photos テーブルに title カラム追加（既存テーブル対応）
 const columns = db.prepare("PRAGMA table_info(photos)").all();
-if (!columns.find(c => c.name === "title")) {
+if (!columns.find((c) => c.name === "title")) {
   db.prepare(`ALTER TABLE photos ADD COLUMN title TEXT`).run();
 }
 
 // API: 写真アップロード
 app.post("/api/photo/upload", upload.single("image"), (req, res) => {
   if (!req.session.user)
-    return res.status(401).json({ success: false, message: "ログインしてください" });
+    return res
+      .status(401)
+      .json({ success: false, message: "ログインしてください" });
 
   if (!req.file)
-    return res.status(400).json({ success: false, message: "画像がありません" });
+    return res
+      .status(400)
+      .json({ success: false, message: "画像がありません" });
 
   const { lat, lng, title } = req.body;
   const filepath = "/uploads/" + req.file.filename;
 
-  const info = db.prepare(
-    `INSERT INTO photos (user_email, filepath, latitude, longitude, title, created_at)
+  const info = db
+    .prepare(
+      `INSERT INTO photos (user_email, filepath, latitude, longitude, title, created_at)
      VALUES (?, ?, ?, ?, ?, datetime('now'))`
-  ).run(req.session.user.email, filepath, lat, lng, title || "");
+    )
+    .run(req.session.user.email, filepath, lat, lng, title || "");
 
   res.json({ success: true, filepath, id: info.lastInsertRowid });
 });
@@ -214,14 +231,18 @@ app.post("/api/photo/upload", upload.single("image"), (req, res) => {
 // API: 写真一覧
 app.get("/api/photo/list", (req, res) => {
   if (!req.session.user)
-    return res.status(401).json({ success: false, message: "ログインしてください" });
+    return res
+      .status(401)
+      .json({ success: false, message: "ログインしてください" });
 
-  const rows = db.prepare(
-    `SELECT id, filepath, latitude, longitude, title, created_at
+  const rows = db
+    .prepare(
+      `SELECT id, filepath, latitude, longitude, title, created_at
      FROM photos
      WHERE user_email = ?
      ORDER BY created_at DESC`
-  ).all(req.session.user.email);
+    )
+    .all(req.session.user.email);
 
   res.json({ success: true, photos: rows });
 });
@@ -243,16 +264,19 @@ const loadPhotos = async () => {
   });
 };
 
-
 // -------------------------------------------------------
 // ★ API: 写真アップロード
 // -------------------------------------------------------
 app.post("/api/photo/upload", upload.single("image"), (req, res) => {
   if (!req.session.user)
-    return res.status(401).json({ success: false, message: "ログインしてください" });
+    return res
+      .status(401)
+      .json({ success: false, message: "ログインしてください" });
 
   if (!req.file)
-    return res.status(400).json({ success: false, message: "画像がありません" });
+    return res
+      .status(400)
+      .json({ success: false, message: "画像がありません" });
 
   const { lat, lng } = req.body;
   const filepath = "/uploads/" + req.file.filename;
@@ -265,31 +289,35 @@ app.post("/api/photo/upload", upload.single("image"), (req, res) => {
   res.json({ success: true, filepath });
 });
 
-
 // -------------------------------------------------------
 // ★ API: 自分の写真一覧
 // -------------------------------------------------------
 app.get("/api/photo/list", (req, res) => {
   if (!req.session.user)
-    return res.status(401).json({ success: false, message: "ログインしてください" });
+    return res
+      .status(401)
+      .json({ success: false, message: "ログインしてください" });
 
-  const rows = db.prepare(
-    `SELECT id, filepath, latitude, longitude, created_at
+  const rows = db
+    .prepare(
+      `SELECT id, filepath, latitude, longitude, created_at
      FROM photos
      WHERE user_email = ?
      ORDER BY created_at DESC`
-  ).all(req.session.user.email);
+    )
+    .all(req.session.user.email);
 
   res.json({ success: true, photos: rows });
 });
-
 
 // -------------------------------------------------------
 // ★ API: 写真削除（ユーザー単位、ファイル削除 + DB削除）
 // -------------------------------------------------------
 app.delete("/api/photo/:id", (req, res) => {
   if (!req.session.user)
-    return res.status(401).json({ success: false, message: "ログインしてください" });
+    return res
+      .status(401)
+      .json({ success: false, message: "ログインしてください" });
 
   const id = req.params.id;
 
@@ -317,7 +345,6 @@ app.delete("/api/photo/:id", (req, res) => {
 
   return res.json({ success: true });
 });
-
 
 // ----------------------------------
 // サーバー起動
