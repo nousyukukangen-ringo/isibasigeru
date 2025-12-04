@@ -22,6 +22,7 @@
       <button id="camera-start" class="camera-btn blue-btn">📷 カメラを起動</button>
       <button id="camera-shoot" class="camera-btn green-btn hidden">📸 撮影</button>
       <button id="camera-close" class="camera-btn red-btn hidden">❌ 閉じる</button>
+      <button id="camera-delete" class="camera-btn black-btn hidden">削除</button>
     </div>
   </div>
 
@@ -37,6 +38,7 @@
     <div id="ar-image" class="ar-image"></div>
     <div style="display:flex; gap:8px; justify-content:flex-end;">
       <button id="ar-close" class="close-btn">閉じる</button>
+      <button id="ar-delete" class="delete-btn">削除</button>
     </div>
   </div>
 
@@ -66,11 +68,13 @@ html, body { height: 100%; margin: 0; padding:0; }
 .blue-btn { background:#2E6FBA; }
 .green-btn { background:#2ebd70; }
 .red-btn { background:#f44336; }
+.black-btn {background:#000000; }
 .hidden { display:none; }
 
 .ar-preview { width:92%; margin:0 auto 12px auto; padding:12px; background:#fff; border-radius:10px; border:1px solid #ddd; }
 .ar-image { width:100%; height:180px; background-size:cover; background-position:center; border-radius:8px; margin-bottom:8px; }
 .close-btn { background:#ff5a5a; color:#fff; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; }
+.delete-btn {background:#000000; color:#fff; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; }
 
 .menu-section { display:flex; justify-content:space-around; margin:15px 0; }
 .menu-btn { width:40%; padding:15px; border:none; border-radius:10px; background:#2E6FBA; color:white; font-size:18px; }
