@@ -100,6 +100,14 @@ document.addEventListener("DOMContentLoaded", () => {
         popupAnchor: [1, -34],
         shadowSize: [41, 41]
       });
+     const blueIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
       navigator.geolocation.getCurrentPosition(
@@ -244,7 +252,7 @@ saveTitleBtn.onclick = async () => {
 
   // マーカー追加
   // マーカー追加
-const marker = L.marker([currentLatLng.lat, currentLatLng.lng], { icon: redIcon }).addTo(map);
+const marker = L.marker([currentLatLng.lat, currentLatLng.lng], { icon: blueIcon }).addTo(map);
   marker.bindPopup(title); // マウスオーバーでタイトル表示
   marker.on("click", () => {
     currentViewingId = j.id;
