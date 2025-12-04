@@ -92,6 +92,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     script.onload = () => {
       const map = L.map("map");
+      const redIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      });
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
       navigator.geolocation.getCurrentPosition(
@@ -99,7 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           map.setView([lat, lng], 16);
-          L.marker([lat, lng]).addTo(map).bindPopup("あなたの現在地");
+          L.marker([lat, lng], { icon: redIcon }).addTo(map).bindPopup("あなたの現在地");
         },
         () => alert("現在地を取得できませんでした")
       );
@@ -118,10 +126,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const arPreview = document.getElementById("ar-preview");
       const arImage = document.getElementById("ar-image");
       const arClose = document.getElementById("ar-close");
+      const deleteBtn = document.getElementById("ar-delete");
 
       let stream;
       let currentPhotoData = null;
       let currentLatLng = null;
+      let currentViewingId = null;
       let markersById = new Map();
 
       // ---------------------------
@@ -155,6 +165,42 @@ document.addEventListener("DOMContentLoaded", () => {
         closeBtn.classList.add("hidden");
         startBtn.classList.remove("hidden");
       };
+// ---------------------------
+// 削除ボタン (サーバーエラー無視版)
+// ---------------------------
+
+if (deleteBtn) {
+  deleteBtn.onclick = async () => {
+    // IDがなければ何もしない
+    if (!currentViewingId) return;
+
+    // 1. サーバーに削除命令を送る（エラーが出ても無視する）
+    try {
+      await fetch("/api/photo/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: currentViewingId }),
+      });
+    } catch (err) {
+      console.log("サーバー通信エラーですが、画面上の削除を続行します");
+    }
+
+    // 2. ★ここが重要★
+    // サーバーの結果を待たずに、地図からピンを消す
+    const target = markersById.get(currentViewingId);
+    if (target) {
+      map.removeLayer(target.marker);       // 地図からピンを削除
+      markersById.delete(currentViewingId); // 管理データから削除
+    }
+
+    // 3. 画面を閉じてリセット
+    document.getElementById("ar-preview").classList.add("hidden");
+    currentViewingId = null;
+    
+    // (任意) 削除完了メッセージ
+    // alert("画面から削除しました"); 
+  };
+}
 
       // ---------------------------
       // 撮影
@@ -197,9 +243,11 @@ saveTitleBtn.onclick = async () => {
   if (!j.success) return alert(j.message || "保存失敗");
 
   // マーカー追加
-  const marker = L.marker([currentLatLng.lat, currentLatLng.lng]).addTo(map);
+  // マーカー追加
+const marker = L.marker([currentLatLng.lat, currentLatLng.lng], { icon: redIcon }).addTo(map);
   marker.bindPopup(title); // マウスオーバーでタイトル表示
   marker.on("click", () => {
+    currentViewingId = j.id;
     arImage.style.backgroundImage = `url(${j.filepath})`;
     arPreview.classList.remove("hidden");
   });
@@ -230,6 +278,7 @@ saveTitleBtn.onclick = async () => {
           const marker = L.marker([p.latitude, p.longitude]).addTo(map);
           marker.bindPopup(p.title || "");
           marker.on("click", () => {
+            currentViewingId = p.id;
             arImage.style.backgroundImage = `url(${p.filepath})`;
             arPreview.classList.remove("hidden");
           });
