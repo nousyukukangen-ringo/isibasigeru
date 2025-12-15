@@ -20,8 +20,13 @@
     "kibidango": 0
   },
   {
+<<<<<<< HEAD
     "email": "yaju@yaju",
     "password": "$2b$10$4AlX8khPILrW5QCBqe4Ckuq7qP3NvhNy6y/WksNxTRGBWd1a8bpPa",
+=======
+    "email": "nandemo@ziyuuni",
+    "password": "$2b$10$knQphbYMNXJLsetSP3XwSewZNUGX1TNCb6pdKpgSvboWu0G5mw9za",
+>>>>>>> 0f2cc0e376e9b1d8e5ae60032bb23b69689f281e
     "kibidango": 0
   }
 ]

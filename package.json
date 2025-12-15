@@ -18,12 +18,16 @@
   },
   "homepage": "https://github.com/nousyukukangen-ringo/isibasigeru#readme",
   "dependencies": {
+    "@simplewebauthn/server": "^13.2.2",
+    "base64url": "^3.0.1",
     "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.4.6",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-session": "^1.18.2",
-    "fs-extra": "^11.3.2"
+    "fs-extra": "^11.3.2",
+    "multer": "^2.0.2"
   }
 }
