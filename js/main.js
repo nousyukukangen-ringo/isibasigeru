@@ -83,8 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 仮ボタン
     document.getElementById("goto-sns").onclick = () =>
       alert("SNSページは後で作ります");
-    document.getElementById("goto-folder").onclick = () =>
-      alert("フォルダページは後で作ります");
+ 
 
     // Leaflet
     const script = document.createElement("script");
@@ -334,4 +333,140 @@ const marker = L.marker([currentLatLng.lat, currentLatLng.lng], { icon: blueIcon
 
   window.addEventListener("hashchange", router);
   router();
+});
+
+
+
+
+
+document.getElementById("goto-folder").addEventListener("click", function () {
+    // folder.htmlが "pages" フォルダ内にある場合、相対パスを変更
+    window.location.href = "pages/folder.html"; // 修正点
+});
+
+
+
+
+ // ------------------------------------
+    // フォルダ
+    // ------------------------------------
+// gallery.js
+
+document.addEventListener('DOMContentLoaded', () => {
+    const galleryElement = document.querySelector('.gallery');
+    const deleteButton = document.getElementById('delete-button');
+    let selectedPhotos = new Set();
+    let allPhotosData = []; 
+
+    // ------------------------------------
+    // サーバーから写真一覧を取得し、描画する
+    // ------------------------------------
+    async function loadPhotos() {
+        try {
+            const response = await fetch("/api/photo/list");
+            const data = await response.json();
+            
+            const loadingMessage = document.getElementById('loading-message');
+            if (loadingMessage) {
+                loadingMessage.style.display = 'none';
+            }
+
+            if (!data.success) {
+                galleryElement.innerHTML = '<p style="grid-column: 1 / 4; text-align: center; padding: 20px; color: red;">写真を取得できませんでした。ログインしてください。</p>';
+                return;
+            }
+
+            allPhotosData = data.photos;
+            renderPhotos(allPhotosData);
+
+        } catch (error) {
+            console.error("写真の取得エラー:", error);
+            const loadingMessage = document.getElementById('loading-message');
+            if (loadingMessage) {
+                loadingMessage.style.display = 'none';
+            }
+            galleryElement.innerHTML = '<p style="grid-column: 1 / 4; text-align: center; padding: 20px; color: red;">サーバーとの通信エラーが発生しました。</p>';
+        }
+    }
+
+    // 取得した写真データに基づいてHTMLを生成する
+    function renderPhotos(photos) {
+        galleryElement.innerHTML = ''; 
+        
+        if (photos.length === 0) {
+            galleryElement.innerHTML = '<p style="grid-column: 1 / 4; text-align: center; padding: 20px;">写真がありません。</p>';
+            return;
+        }
+
+        photos.forEach(photo => {
+            const item = document.createElement('div');
+            item.className = 'gallery-item';
+            item.setAttribute('data-id', photo.id);
+            
+            item.innerHTML = `
+                <img src="${photo.filepath}" alt="${photo.title || '写真'}" loading="lazy">
+            `;
+            
+            item.addEventListener('click', () => toggleSelection(photo.id, item));
+            
+            galleryElement.appendChild(item);
+        });
+    }
+
+    // ------------------------------------
+    // 選択機能
+    // ------------------------------------
+    function toggleSelection(photoId, element) {
+        if (selectedPhotos.has(photoId)) {
+            selectedPhotos.delete(photoId);
+            element.classList.remove('selected');
+        } else {
+            selectedPhotos.add(photoId);
+            element.classList.add('selected');
+        }
+        updateDeleteButton();
+    }
+
+    function updateDeleteButton() {
+        const count = selectedPhotos.size;
+        deleteButton.textContent = `削除 (${count})`;
+        deleteButton.style.opacity = count > 0 ? 1 : 0.5;
+    }
+
+    // ------------------------------------
+    // 削除機能
+    // ------------------------------------
+    deleteButton.addEventListener('click', async () => {
+        if (selectedPhotos.size === 0) return;
+
+        if (!confirm(`${selectedPhotos.size}枚の写真を削除してもよろしいですか？`)) return;
+
+        const idsToDelete = Array.from(selectedPhotos);
+        let successfulDeletions = 0;
+
+        for (const id of idsToDelete) {
+            try {
+                const response = await fetch(`/api/photo/${id}`, {
+                    method: 'DELETE',
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    successfulDeletions++;
+                } else {
+                    console.error(`削除失敗 (ID: ${id}):`, data.message);
+                }
+            } catch (error) {
+                console.error(`削除リクエストエラー (ID: ${id}):`, error);
+            }
+        }
+
+        alert(`${successfulDeletions}枚の写真を削除しました。`);
+        selectedPhotos.clear();
+        updateDeleteButton();
+        loadPhotos(); // ギャラリーを再描画して更新
+    });
+
+    // ページロード時に写真を読み込む
+    loadPhotos();
 });

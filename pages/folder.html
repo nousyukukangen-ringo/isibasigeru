@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>撮影した画像一覧</title>
+    <style>
+        /*
+         * スタイル（CSS）はすべてここに記述
+         */
+        body {
+            background-color: #f4f4f4; 
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+        }
+
+        .mobile-frame {
+            width: 100%;
+            max-width: 380px; 
+            min-height: 100vh; 
+            background-color: white; 
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative; 
+            padding-bottom: 70px; 
+            box-sizing: border-box; 
+        }
+        
+        .header {
+            background-color: #ffc107; 
+            color: #333;
+            text-align: center;
+            padding: 15px 0;
+            font-weight: bold;
+            font-size: 16px;
+            position: sticky; 
+            top: 0;
+            z-index: 10;
+        }
+        
+        .gallery {
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 5px; 
+            padding: 5px; 
+        }
+        
+        .gallery-item {
+            width: 100%; 
+            padding-top: 100%; 
+            position: relative;
+            background-color: #eee;
+            border-radius: 4px;
+            overflow: hidden; 
+        }
+        
+        .gallery-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .gallery-item.placeholder::before {
+            content: '画像';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #4a86e8;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .gallery-item.selected {
+            outline: 3px solid red;
+        }
+        
+        .footer {
+            background-color: #4a86e8; 
+            color: white;
+            padding: 15px 10px;
+            text-align: center;
+            position: absolute; 
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 16px;
+        }
+        
+        .delete-btn, .back-btn {
+            cursor: pointer;
+        }
+
+        .delete-btn {
+            font-weight: bold;
+            flex-grow: 1; 
+            text-align: left;
+            margin-left: 20px;
+        }
+        
+        .back-btn {
+            font-size: 12px;
+            opacity: 0.8;
+            text-align: right;
+            margin-right: 20px;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <div class="mobile-frame">
+        
+        <div class="header">
+            ソート ▼
+        </div>
+        
+        <div class="gallery">
+            <div id="loading-message" style="grid-column: 1 / 4; text-align: center; padding: 20px;">
+                画像を読み込み中...
+            </div>
+        </div>
+        
+        <div class="footer">
+            <span class="delete-btn" id="delete-button">削除 (0)</span>
+            <span class="back-btn">
+                <span style="font-size: 20px;">←</span> 戻る
+            </span>
+        </div>
+    </div>
+    
+    <script src="gallery.js"></script>
+
+</body>
+</html>
