@@ -6,220 +6,83 @@
         </div>
     </header>
 
-    <main class="feed">
-        </main>
+    <main class="feed"></main>
 
     <footer>
-        <button class="footer-btn">
+        <button class="footer-btn" id="open-post-selector">
             <i class="fas fa-play"></i> 投稿
         </button>
         <input type="file" id="fileInput" accept="image/*" style="display: none;">
 
-        <button class="footer-btn">
+        <button class="footer-btn" id="back-map">
             <i class="fas fa-undo"></i> 戻る
         </button>
     </footer>
 
+    <div class="modal-overlay" id="postSelectorModal">
+        <div class="modal-box wide-modal">
+            <h3>投稿する写真を選択</h3>
+            <div id="my-folder-selection" class="selection-grid">
+                <p class="loading-msg">読み込み中...</p>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" onclick="closePostSelector()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="commentModal">
         <div class="modal-box">
-            <h3 id="modalTitle">コメント入力</h3>
-            <textarea id="commentText" placeholder="コメントを入力..."></textarea>
+            <h3 id="modalTitle">SNSへ投稿</h3>
+            <div id="selected-preview" class="selected-preview"></div>
+            <textarea id="commentText" placeholder="キャプションを入力..."></textarea>
             <div class="modal-buttons">
-                <button class="btn-cancel" onclick="closeCommentModal()">キャンセル</button>
-                <button class="btn-send" onclick="submitComment()">送信</button>
+                <button class="btn-cancel" onclick="closeCommentModal()">戻る</button>
+                <button class="btn-send" id="final-post-btn">シェアする</button>
             </div>
         </div>
     </div>
 </div>
 
 <style>
-    /* --- 全体のリセット --- */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    /* アプリ全体のコンテナ */
-    .app-container {
-        width: 100%;
-        max-width: 1200px; /* PCでは広く表示 */
-        margin: 0 auto;    /* 中央寄せ */
-        background-color: #f9f9f9;
-        min-height: 100vh;
-        position: relative;
-        padding-top: 70px;   /* ヘッダーの高さ分 */
-        padding-bottom: 90px; /* フッターの高さ分 */
-    }
+    /* --- 既存のスタイルに以下を追加 --- */
 
-    /* --- ヘッダー --- */
-    header {
-        position: fixed;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%); /* 常に画面中央 */
-        width: 100%;
-        max-width: 1200px; /* コンテナ幅に合わせる */
-        background-color: #fff;
-        padding: 10px 15px;
-        z-index: 100;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
-    .search-bar {
-        background-color: #FFC107;
-        border-radius: 8px;
-        padding: 10px 15px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .search-bar i { color: #fff; font-size: 1.1rem; }
-    .search-input {
-        width: 100%;
-        border: none;
-        background: transparent;
-        color: #fff;
-        font-size: 1rem;
-        font-weight: bold;
-        outline: none;
-    }
-    .search-input::placeholder { color: rgba(255,255,255,0.8); }
-
-    /* --- 投稿一覧 (グリッドシステム) --- */
-    .feed {
-        padding: 15px;
+    /* 選択用グリッド */
+    .selection-grid {
         display: grid;
-        gap: 20px;
-        /* デフォルト（スマホ）は1列 */
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        max-height: 300px;
+        overflow-y: auto;
+        margin: 15px 0;
+        padding: 5px;
     }
-
-    /* ★修正箇所: 「投稿がありません」などのメッセージ用 */
-    .feed > p {
-        grid-column: 1 / -1; /* 全列をぶち抜いて表示 */
-        text-align: center;
+    .selectable-thumb {
         width: 100%;
-        padding: 50px 0;
-        color: #888;
-        font-weight: bold;
-        font-size: 1.1rem;
-    }
-
-    /* タブレットサイズ（幅600px以上）なら2列 */
-    @media (min-width: 600px) {
-        .feed {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
-
-    /* PCサイズ（幅900px以上）なら3列 */
-    @media (min-width: 900px) {
-        .feed {
-            grid-template-columns: repeat(3, 1fr);
-        }
-    }
-
-    /* 投稿カード */
-    .post-card {
-        background-color: #fff;
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        display: flex;
-        flex-direction: column;
-    }
-    .post-image {
-        width: 100%;
-        aspect-ratio: 4/3; /* 画像比率を固定 */
-        background-color: #eee;
+        aspect-ratio: 1/1;
         background-size: cover;
         background-position: center;
-        position: relative;
-    }
-    .post-image span {
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        color: #555;
-    }
-    .post-info {
-        padding: 12px;
-        background-color: #fff;
-        border-top: 1px solid #eee;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .username { font-weight: bold; font-size: 0.9rem; color: #333; }
-    .post-actions { display: flex; gap: 15px; }
-    .action-btn { 
-        cursor: pointer; 
-        display: flex; align-items: center; gap: 5px; 
-        font-size: 0.85rem; color: #666;
-    }
-    .action-btn i { font-size: 1.1rem; }
-    .like-btn.liked i { color: #ff4081; }
-
-    /* --- フッター --- */
-    footer {
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 90%;
-        max-width: 600px;
-        background-color: #192a56;
-        border-radius: 50px;
-        height: 60px;
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-        padding: 0 20px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        z-index: 100;
-    }
-    .footer-btn {
-        background: none;
-        border: none;
-        color: #fff;
-        font-size: 1rem;
-        font-weight: bold;
+        border-radius: 6px;
         cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 2px;
+        border: 2px solid transparent;
+        transition: 0.2s;
     }
-    .footer-btn i { font-size: 1.2rem; }
+    .selectable-thumb:hover {
+        border-color: #FFC107;
+        transform: scale(1.05);
+    }
+    
+    .wide-modal { max-width: 600px; }
+    
+    .selected-preview {
+        width: 100%;
+        height: 150px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        margin-bottom: 10px;
+        border-radius: 8px;
+    }
 
-    /* --- モーダル --- */
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        background: rgba(0,0,0,0.6);
-        z-index: 200;
-        align-items: center;
-        justify-content: center;
-    }
-    .modal-box {
-        background: #fff;
-        width: 90%;
-        max-width: 500px;
-        padding: 25px;
-        border-radius: 12px;
-        text-align: center;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    }
-    .modal-box textarea {
-        width: 100%; height: 100px;
-        margin: 15px 0; padding: 10px;
-        border: 1px solid #ccc; border-radius: 6px;
-        resize: none; font-size: 1rem;
-    }
-    .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; }
-    .btn-send { background: #192a56; color: #fff; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; }
-    .btn-cancel { background: #eee; color: #333; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; }
-
-    /* --- スマホ特化調整 --- */
-    @media (max-width: 600px) {
-        .post-card { border-radius: 0; box-shadow: none; border-bottom: 1px solid #ddd; }
-        .feed { padding: 0; gap: 0; }
-        .app-container { background-color: #fff; }
-    }
+    .loading-msg { grid-column: 1/-1; padding: 20px; color: #888; }
 </style>
