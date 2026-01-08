@@ -1,0 +1,79 @@
+<div class="folder-wrapper">
+  <div class="folder-header">
+    <span class="back-btn" id="back-map">←</span>
+    <h2>フォルダ</h2>
+  </div>
+
+  <div id="folder-list" class="folder-list"></div>
+
+  <div id="preview-modal" class="preview-modal hidden">
+    <div class="preview-content">
+      
+      <div id="canvas-container" class="canvas-container">
+        <img id="preview-image" />
+        <canvas id="edit-canvas" class="hidden"></canvas>
+      </div>
+
+      <h3 id="preview-title"></h3>
+
+      <div id="edit-tools" class="hidden">
+        <div class="palette">
+          <div class="swatch active" style="background:#ff0000" data-color="#ff0000"></div>
+          <div class="swatch" style="background:#00ff00" data-color="#00ff00"></div>
+          <div class="swatch" style="background:#ffff00" data-color="#ffff00"></div>
+          <div class="swatch" style="background:#ffffff" data-color="#ffffff"></div>
+          <div class="swatch" style="background:#000000" data-color="#000000"></div>
+        </div>
+        <button id="edit-clear" class="clear-btn">リセット</button>
+      </div>
+
+      <div class="preview-actions">
+        <button id="preview-edit" class="edit-trigger">🎨 落書き</button>
+        <button id="preview-close">閉じる</button>
+        <button id="preview-delete" class="danger">削除</button>
+        <button id="preview-save" class="save-btn hidden">💾 保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* 既存のスタイルを活かしつつ拡張 */
+  .folder-wrapper { min-height: 100vh; background: #f5f6fa; }
+  .folder-header { height: 64px; background: #ffc107; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; position: relative; }
+  .back-btn { position: absolute; left: 16px; font-size: 22px; cursor: pointer; }
+
+  .folder-list { padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+  .photo-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); cursor: pointer; transition: transform 0.15s; }
+  .photo-card:hover { transform: scale(1.02); }
+  .photo-thumb { width:100%; aspect-ratio:4/3; background-size:cover; background-position:center; }
+  .photo-title { padding:8px; font-size:14px; text-align:center; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* モーダル & 編集エリア */
+  .preview-modal { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; justify-content:center; align-items:center; z-index:1000; }
+  .preview-content { background:#fff; width:92%; max-width:420px; border-radius:14px; padding:16px; text-align:center; position:relative; }
+  
+  .canvas-container { position: relative; width: 100%; margin-bottom: 10px; line-height: 0; }
+  #preview-image { width: 100%; border-radius: 10px; }
+  
+  /* キャンバスを画像の上にぴったり重ねる */
+  #edit-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 10px; touch-action: none; z-index: 5; }
+
+  /* パレットツール */
+  .palette { display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; background: #f0f0f0; padding: 8px; border-radius: 20px; }
+  .swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+  .swatch.active { transform: scale(1.2); border-color: #333; }
+  .clear-btn { background: #eee; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; margin-bottom: 10px; cursor: pointer; }
+
+  .preview-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .preview-actions button { padding: 10px 16px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; }
+  
+  .edit-trigger { background: #FFC107; color: #000; }
+  .save-btn { background: #2ebd70 !important; color: #fff !important; }
+  .preview-actions .danger { background: #000; color: #fff; }
+  #preview-close { background: #ddd; }
+
+  .hidden { display: none !important; }
+
+  @media (min-width: 900px) { .folder-list { max-width: 1000px; margin: 0 auto; } }
+</style>
