@@ -58,142 +58,161 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     document.getElementById(isS ? "goto-login" : "goto-signup").onclick = () =>
       (location.hash = isS ? "#login" : "#signup");
-  };
+  };const initSNS = async () => {
+  // 1. サーバーから最新の全ユーザー投稿を同期
+  await sync(); 
+  
+  const feed = document.querySelector(".feed");
+  const searchInput = document.querySelector(".search-input");
+  const openBtn = document.getElementById("open-post-selector");
+  const selectorModal = document.getElementById("postSelectorModal");
+  const selectionGrid = document.getElementById("my-folder-selection");
+  const commentModal = document.getElementById("commentModal");
 
-  const initSNS = async () => {
-    await sync();
-    const feed = document.querySelector(".feed"),
-      search = document.querySelector(".search-input");
+  // --- 🎨 描画エンジン: render関数 ---
+  const render = (query = "") => {
+    if (!feed) return;
+    feed.innerHTML = "";
 
-    // --- 1. SNSフィードの描画 ---
-    const render = (q = "") => {
-      if (!feed) return;
-      feed.innerHTML = "";
-      allPosts
-        .filter(
-          (p) => (p.title || "").includes(q) || (p.user || "").includes(q)
-        )
-        .forEach((p) => {
-          const liked = myLikes.has(p.id);
-          const card = document.createElement("article");
-          card.className = "post-card";
+    // ① 検索フィルタリング & ② 最新順(降順)にソート
+    const displayPosts = allPosts
+      .filter(p => 
+        (p.caption || "").toLowerCase().includes(query.toLowerCase()) || 
+        (p.user || "").toLowerCase().includes(query.toLowerCase())
+      )
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-          // 投稿者本人かどうか判定（削除ボタン表示のため）
-          // サーバーから p.is_mine のようなフラグが返ってくる想定だぜ
-          const deleteBtnHtml = p.is_mine
-            ? `<button class="action-btn del-post-btn"><i class="fas fa-trash"></i></button>`
-            : "";
-
-          card.innerHTML = `
-            <div class="post-image" style="background-image:url('${
-              p.image || p.filepath || ""
-            }')"></div>
-            <div class="post-info">
-              <span class="username">${p.user || "User"}</span>
-              <div class="post-actions">
-                <button class="action-btn like-btn ${liked ? "liked" : ""}">
-                  <i class="${liked ? "fas" : "far"} fa-heart"></i>
-                </button>
-                <button class="action-btn comment-btn"><i class="far fa-comment"></i></button>
-                ${deleteBtnHtml}
-              </div>
-            </div>`;
-
-          // いいね処理
-          card.querySelector(".like-btn").onclick = async () => {
-            await api.post("/api/like", {
-              post_id: p.id,
-              action: liked ? "unlike" : "like",
-            });
-            await sync();
-            render(search?.value);
-          };
-
-          // コメント処理
-          card.querySelector(".comment-btn").onclick = () =>
-            openCommentModal(p);
-
-          // 削除処理（本人限定）
-          if (p.is_mine) {
-            card.querySelector(".del-post-btn").onclick = async () => {
-              if (
-                !confirm(
-                  "この投稿をSNSから削除するかい？（フォルダには残るぜ）"
-                )
-              )
-                return;
-              const res = await api.post("/api/sns/delete", { post_id: p.id });
-              if (res.success) {
-                await sync();
-                render();
-              }
-            };
-          }
-
-          feed.appendChild(card);
-        });
-    };
-
-    render();
-    if (search) search.onkeyup = (e) => render(e.target.value);
-
-    // --- 2. フォルダから投稿するフロー ---
-    const openBtn = document.getElementById("open-post-selector");
-    const selectorModal = document.getElementById("postSelectorModal");
-    const selectionGrid = document.getElementById("my-folder-selection");
-
-    if (openBtn) {
-      openBtn.onclick = async () => {
-        selectorModal.style.display = "flex";
-        selectionGrid.innerHTML = "読み込み中...";
-
-        const j = await api.get("/api/photo/list"); // 自分のフォルダ取得
-        if (j.success && j.photos.length > 0) {
-          selectionGrid.innerHTML = "";
-          j.photos.forEach((photo) => {
-            const thumb = document.createElement("div");
-            thumb.className = "selectable-thumb";
-            thumb.style.backgroundImage = `url(${photo.filepath})`;
-            thumb.onclick = () => prepareToPost(photo);
-            selectionGrid.appendChild(thumb);
-          });
-        } else {
-          selectionGrid.innerHTML =
-            "<p>フォルダが空だぜ。まずは撮影してきな！</p>";
-        }
-      };
+    if (displayPosts.length === 0) {
+      feed.innerHTML = `<p class="empty-msg">投稿が見つからないぜ、ブラザー！</p>`;
+      return;
     }
 
-    // 投稿前の最終確認（コメント入力）
-    const prepareToPost = (photo) => {
-      selectorModal.style.display = "none";
-      const commentModal = document.getElementById("commentModal");
-      document.getElementById(
-        "selected-preview"
-      ).style.backgroundImage = `url(${photo.filepath})`;
-      commentModal.style.display = "flex";
+    displayPosts.forEach((p) => {
+      const liked = myLikes.has(p.id);
+      const card = document.createElement("article");
+      card.className = "post-card";
 
-      document.getElementById("final-post-btn").onclick = async () => {
-        const text = document.getElementById("commentText").value;
-        const res = await api.post("/api/sns/post", {
-          photo_id: photo.id,
-          caption: text,
-        });
-        if (res.success) {
-          closeCommentModal();
-          await sync();
-          render();
-        }
+      // 本人確認フラグ（削除ボタン）
+      const deleteBtnHtml = p.is_mine 
+        ? `<button class="action-btn del-post-btn" title="削除"><i class="fas fa-trash"></i></button>` 
+        : "";
+
+      card.innerHTML = `
+        <div class="post-image" style="background-image:url('${p.filepath}')"></div>
+        <div class="post-info">
+          <div>
+            <span class="username">@${p.user || "Unknown"}</span>
+            <p class="post-caption">${p.caption || ""}</p>
+          </div>
+          <div class="post-actions">
+            <button class="action-btn like-btn ${liked ? 'liked' : ''}">
+              <i class="${liked ? 'fas' : 'far'} fa-heart"></i>
+            </button>
+            ${deleteBtnHtml}
+          </div>
+        </div>`;
+
+      // いいね！ボタン
+      card.querySelector(".like-btn").onclick = async () => {
+        await api.post("/api/like", { post_id: p.id, action: liked ? "unlike" : "like" });
+        await sync();
+        render(searchInput.value);
       };
-    };
 
-    document.getElementById("back-map").onclick = () =>
-      (location.hash = "#map");
+      // 削除ボタン
+      if (p.is_mine) {
+        card.querySelector(".del-post-btn").onclick = async () => {
+          if (!confirm("この作品をSNSから撤去するかい？")) return;
+          const res = await api.post("/api/sns/delete", { post_id: p.id });
+          if (res.success) {
+            await sync();
+            render(searchInput.value);
+          }
+        };
+      }
+      feed.appendChild(card);
+    });
   };
 
-  // モーダルを閉じる関数をグローバルに
-  window.closePostSelector = () =>
-    (document.getElementById("postSelectorModal").style.display = "none");
+  // --- 📂 投稿フロー ---
+  if (openBtn) {
+    openBtn.onclick = async () => {
+      selectorModal.style.display = "flex";
+      selectionGrid.innerHTML = "ロード中だ...";
+      const j = await api.get("/api/photo/list");
+      if (j.success && j.photos.length > 0) {
+        selectionGrid.innerHTML = "";
+        j.photos.forEach(photo => {
+          const thumb = document.createElement("div");
+          thumb.className = "selectable-thumb";
+          thumb.style.backgroundImage = `url(${photo.filepath})`;
+          thumb.onclick = () => {
+            selectorModal.style.display = "none";
+            openPublishModal(photo);
+          };
+          selectionGrid.appendChild(thumb);
+        });
+      } else {
+        selectionGrid.innerHTML = "<p>フォルダが空だぜ！</p>";
+      }
+    };
+  }
+
+  // --- 🚀 【重要】最終投稿：ここが動画の不具合を直す心臓部だ！ ---
+  const openPublishModal = (photo) => {
+    const preview = document.getElementById("selected-preview");
+    if (preview) preview.style.backgroundImage = `url(${photo.filepath})`;
+    commentModal.style.display = "flex";
+
+    const finalPostBtn = document.getElementById("final-post-btn");
+    
+    // イベントが重複しないよう、onclickを直接上書きするぜ
+    finalPostBtn.onclick = async () => {
+      const caption = document.getElementById("commentText").value;
+      
+      // 1. ボタンをロックして「送ってる感」を出す
+      finalPostBtn.disabled = true;
+      finalPostBtn.innerText = "シェア中...";
+
+      try {
+        const res = await api.post("/api/sns/post", { 
+          photo_id: photo.id, 
+          caption: caption 
+        });
+
+        if (res.success) {
+          // 2. 成功したら後片付け
+          document.getElementById("commentText").value = ""; 
+          commentModal.style.display = "none";
+          
+          // 3. 最新状態を反映
+          await sync(); 
+          render();     
+          alert("世界にシェアしたぜ、ブラザー！");
+        } else {
+          alert("ミスっちまった： " + res.message);
+        }
+      } catch (err) {
+        console.error(err);
+        alert("通信エラーだ、もう一度頼む！");
+      } finally {
+        // 4. 最後に必ずボタンを元に戻す
+        finalPostBtn.disabled = false;
+        finalPostBtn.innerText = "シェアする";
+      }
+    };
+  };
+
+  // 🔍 検索
+  if (searchInput) searchInput.oninput = (e) => render(e.target.value);
+
+  render();
+  document.getElementById("back-map").onclick = () => (location.hash = "#map");
+};
+
+// モーダルクローズ関数
+window.closePostSelector = () => document.getElementById("postSelectorModal").style.display = "none";
+window.closeCommentModal = () => document.getElementById("commentModal").style.display = "none";
   // --- マップページ ---
   const initMapPage = async () => {
     await sync();
