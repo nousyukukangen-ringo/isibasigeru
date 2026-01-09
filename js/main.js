@@ -1,624 +1,645 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const appContainer = document.getElementById("app-container");
+  const app = document.getElementById("app-container");
+  let allPosts = [],
+    myLikes = new Set();
 
-  // ==========================================
-  // ★グローバル変数（サーバーから取得したデータをここに保管）
-  // ==========================================
-  
-  // 全ユーザーの投稿データ
-  let allSnsPosts = []; 
-  
-  // 自分が「いいね」した投稿IDのリスト
-  let myLikedPostIds = new Set();
+  // --- APIヘルパー ---
+  const api = {
+    get: async (u) => (await fetch(u)).json(),
+    post: async (u, b) =>
+      (
+        await fetch(u, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(b),
+        })
+      ).json(),
+    form: async (u, f) => (await fetch(u, { method: "POST", body: f })).json(),
+    del: async (u) => (await fetch(u, { method: "DELETE" })).json(),
+  };
 
-
-  // ==========================================
-  // ★API通信関数（実際にサーバーへアクセスします）
-  // ==========================================
-  
-  // 1. 投稿データと「いいね」情報を一括取得
-  const fetchAllPosts = async () => {
+  // --- 全投稿・いいね同期 ---
+  const sync = async () => {
     try {
-      const res = await fetch("/api/all_posts"); // サーバーへリクエスト
-      if (!res.ok) throw new Error("データ取得失敗");
-      
-      const json = await res.json();
-      if (json.success) {
-        // 成功したら変数を更新
-        allSnsPosts = json.posts; 
-        // サーバーが { my_likes: [1, 5, 10] } のように返してくれる想定
-        if (json.my_likes) {
-            myLikedPostIds = new Set(json.my_likes);
-        }
+      const j = await api.get("/api/all_posts");
+      if (j.success) {
+        allPosts = j.posts;
+        myLikes = new Set(j.my_likes || []);
       }
     } catch (e) {
-      console.error("サーバー通信エラー:", e);
-      // 本番なのでエラー時はアラートを出すか、静かに失敗させます
-      // alert("データの読み込みに失敗しました");
+      console.error("Sync Error", e);
     }
   };
 
-  // 2. ログイン状態の確認
-  const fetchMe = async () => {
-    try {
-        const res = await fetch("/api/me");
-        if(res.ok) return await res.json();
-    } catch(e) { console.error(e); }
-    return { loggedIn: false };
+  // --- 認証 (Login / Signup) ---
+  const initAuth = (type) => {
+    const isS = type === "signup";
+    const btn = document.getElementById(isS ? "signup-button" : "login-button");
+    if (!btn) return;
+    btn.onclick = async () => {
+      const email = document.getElementById(
+        isS ? "signup-email" : "login-email"
+      ).value;
+      const pass = document.getElementById(
+        isS ? "signup-password" : "login-password"
+      ).value;
+      if (isS && pass !== document.getElementById("signup-password2").value)
+        return alert("不一致");
+      const j = await api.post(isS ? "/api/signup" : "/api/login", {
+        email,
+        password: pass,
+      });
+      if (j.success) {
+        if (!isS) {
+          await sync();
+          location.hash = "#map";
+        } else location.hash = "#login";
+      } else alert(j.message);
+    };
+    document.getElementById(isS ? "goto-login" : "goto-signup").onclick = () =>
+      (location.hash = isS ? "#login" : "#signup");
   };
+  const initSNS = async () => {
+    // 1. サーバーから最新の全ユーザー投稿を同期
+    await sync();
 
-  // 3. ログアウト処理
-  const logout = async () => {
-    try { await fetch("/api/logout", { method: "POST" }); } catch(e){}
-    window.location.hash = "#login";
-  };
+    const feed = document.querySelector(".feed");
+    const searchInput = document.querySelector(".search-input");
+    const openBtn = document.getElementById("open-post-selector");
+    const selectorModal = document.getElementById("postSelectorModal");
+    const selectionGrid = document.getElementById("my-folder-selection");
+    const commentModal = document.getElementById("commentModal");
 
+    // --- 🎨 描画エンジン: render関数 ---
+    const render = (query = "") => {
+      if (!feed) return;
+      feed.innerHTML = "";
 
-  // ==========================================
-  // ページ初期化処理: ログイン
-  // ==========================================
-  const initLoginPage = () => {
-    const loginBtn = document.getElementById("login-button");
-    if(loginBtn) {
-        loginBtn.onclick = async () => {
-          const email = document.getElementById("login-email").value;
-          const password = document.getElementById("login-password").value;
+      // ① 検索フィルタリング & ② 最新順(降順)にソート
+      const displayPosts = allPosts
+        .filter(
+          (p) =>
+            (p.caption || "").toLowerCase().includes(query.toLowerCase()) ||
+            (p.user || "").toLowerCase().includes(query.toLowerCase())
+        )
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-          try {
-              const res = await fetch("/api/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
-              });
-              const result = await res.json();
-              
-              if (!result.success) {
-                  alert(result.message || "ログイン失敗");
-                  return;
-              }
-
-              // ログイン成功したらすぐに最新データを取得しにいく
-              await fetchAllPosts();
-              window.location.hash = "#map";
-
-          } catch(e) {
-              alert("サーバーエラーが発生しました");
-          }
-        };
-    }
-    const signupLink = document.getElementById("goto-signup");
-    if(signupLink) signupLink.onclick = () => window.location.hash = "#signup";
-  };
-
-  // ==========================================
-  // ページ初期化処理: 新規登録
-  // ==========================================
-  const initSignupPage = () => {
-    const signupBtn = document.getElementById("signup-button");
-    if(signupBtn) {
-        signupBtn.onclick = async () => {
-            const email = document.getElementById("signup-email").value;
-            const p1 = document.getElementById("signup-password").value;
-            const p2 = document.getElementById("signup-password2").value;
-
-            if (p1 !== p2) return alert("パスワードが一致しません");
-
-            try {
-                const res = await fetch("/api/signup", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, password: p1 }),
-                });
-                const result = await res.json();
-                if (!result.success) return alert(result.message);
-                
-                alert("登録しました。ログインしてください。");
-                window.location.hash = "#login";
-            } catch(e) {
-                alert("通信エラー");
-            }
-        };
-    }
-    const loginLink = document.getElementById("goto-login");
-    if(loginLink) loginLink.onclick = () => window.location.hash = "#login";
-  };
-
-
-  // ==========================================
-  // ★ページ初期化処理: SNS画面 (ここがメイン)
-  // ==========================================
-  const initSNSPage = async () => {
-    // 画面を開いた瞬間にサーバーから最新データを取得
-    await fetchAllPosts();
-
-    const feedContainer = document.querySelector('.feed');
-    const searchInput = document.querySelector('.search-input');
-    
-    // --- 描画関数 ---
-    const renderFeed = (filterText = "") => {
-      if(!feedContainer) return;
-      feedContainer.innerHTML = "";
-
-      // 検索フィルタ
-      const filteredPosts = allSnsPosts.filter(post => 
-        (post.title && post.title.includes(filterText)) || 
-        (post.user && post.user.includes(filterText))
-      );
-
-      if (filteredPosts.length === 0) {
-          feedContainer.innerHTML = "<p style='text-align:center; padding:20px; color:#888;'>投稿がありません</p>";
-          return;
+      if (displayPosts.length === 0) {
+        feed.innerHTML = `<p class="empty-msg">投稿が見つからないぜ、ブラザー！</p>`;
+        return;
       }
 
-      filteredPosts.forEach(post => {
-        // いいね状態チェック
-        const isLiked = myLikedPostIds.has(post.id);
-        const heartIcon = isLiked ? "fas" : "far"; 
-        const likedClass = isLiked ? "liked" : "";
-        
-        // 画像パス (サーバーが返すキー名に合わせてください: filepath か image)
-        const imgSrc = post.image || post.filepath || ""; 
+      displayPosts.forEach((p) => {
+        const liked = myLikes.has(p.id);
+        const card = document.createElement("article");
+        card.className = "post-card";
 
-        const card = document.createElement('article');
-        card.className = 'post-card';
+        // 本人確認フラグ（削除ボタン）
+        const deleteBtnHtml = p.is_mine
+          ? `<button class="action-btn del-post-btn" title="削除"><i class="fas fa-trash"></i></button>`
+          : "";
+
         card.innerHTML = `
-          <div class="post-image" style="background-image: url('${imgSrc}'); background-size: cover; background-position: center;">
-             ${!imgSrc ? `<span>${post.title}</span>` : ''} 
+        <div class="post-image" style="background-image:url('${
+          p.filepath
+        }')"></div>
+        <div class="post-info">
+          <div>
+            <span class="username">@${p.user || "Unknown"}</span>
+            <p class="post-caption">${p.caption || ""}</p>
           </div>
-          <div class="post-info">
-              <span class="username">${post.user || "ユーザー"}</span>
-              <div class="post-actions">
-                  <div class="action-btn like-btn ${likedClass}" data-id="${post.id}">
-                      <i class="${heartIcon} fa-heart"></i>
-                      <span>${(post.likes || 0) + (isLiked ? 0 : 0)}</span>
-                  </div>
-                  <div class="action-btn comment-btn" data-id="${post.id}">
-                      <i class="far fa-comment-dots"></i>
-                      <span>コメント</span>
-                  </div>
-              </div>
+          <div class="post-actions">
+            <button class="action-btn like-btn ${liked ? "liked" : ""}">
+              <i class="${liked ? "fas" : "far"} fa-heart"></i>
+            </button>
+            ${deleteBtnHtml}
           </div>
-        `;
-        feedContainer.appendChild(card);
-      });
+        </div>`;
 
-      // --- イベント: いいねボタン ---
-      document.querySelectorAll('.like-btn').forEach(btn => {
-        btn.onclick = async () => {
-          const id = parseInt(btn.getAttribute('data-id'));
-          const action = myLikedPostIds.has(id) ? "unlike" : "like";
-
-          // UIを即座に更新（体感速度向上）
-          if (action === "like") myLikedPostIds.add(id);
-          else myLikedPostIds.delete(id);
-          renderFeed(searchInput ? searchInput.value : "");
-
-          // サーバーへ送信
-          try {
-             await fetch("/api/like", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ post_id: id, action: action })
-             });
-             // 必要ならここで fetchAllPosts() して正確な数値を再取得してもよい
-          } catch(e) {
-             console.error("いいね送信失敗", e);
-             // 失敗したら元に戻す処理などを入れても良い
-          }
-        };
-      });
-
-      // --- イベント: コメントボタン ---
-      document.querySelectorAll('.comment-btn').forEach(btn => {
-        btn.onclick = () => {
-          const id = parseInt(btn.getAttribute('data-id'));
-          const post = allSnsPosts.find(p => p.id === id);
-          if(post) openSNSCommentModal(post);
-        };
-      });
-    };
-
-    // 初期描画
-    renderFeed();
-
-    // 検索イベント
-    if(searchInput) {
-        searchInput.onkeyup = (e) => renderFeed(e.target.value);
-    }
-
-    // 戻るボタン
-    const undoBtn = document.querySelector('.footer-btn i.fa-undo');
-    if(undoBtn) {
-        undoBtn.parentElement.onclick = () => window.location.hash = "#map";
-    }
-
-    // --- 投稿ボタン（実際にアップロード） ---
-    const playBtn = document.querySelector('.footer-btn i.fa-play');
-    const fileInput = document.getElementById('fileInput');
-    
-    if(playBtn && fileInput) {
-        playBtn.parentElement.onclick = () => fileInput.click();
-        
-        fileInput.onchange = async (e) => {
-            if(e.target.files.length === 0) return;
-            
-            const file = e.target.files[0];
-            const fd = new FormData();
-            fd.append("image", file);
-            fd.append("title", "SNS投稿"); // タイトル入力欄を作る場合はここを変える
-
-            // 位置情報も一緒に送る
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                fd.append("lat", pos.coords.latitude);
-                fd.append("lng", pos.coords.longitude);
-                
-                try {
-                    const res = await fetch("/api/photo/upload", { method: "POST", body: fd });
-                    const j = await res.json();
-                    
-                    if(j.success) {
-                        alert("投稿しました！");
-                        // データを再取得してリストを更新
-                        await fetchAllPosts();
-                        renderFeed();
-                    } else {
-                        alert("投稿失敗: " + j.message);
-                    }
-                } catch(err) {
-                    alert("アップロード中にエラーが発生しました");
-                }
-            }, () => {
-                alert("位置情報が取得できないため投稿できません");
-            });
-        };
-    }
-
-    // --- コメントモーダル制御 ---
-    const modal = document.getElementById('commentModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const textarea = document.getElementById('commentText');
-    
-    let commentListDiv = document.getElementById('comment-list-area');
-    if (!commentListDiv && modalTitle) {
-        commentListDiv = document.createElement('div');
-        commentListDiv.id = 'comment-list-area';
-        commentListDiv.style.cssText = "text-align:left; margin-bottom:10px; max-height:150px; overflow-y:auto; border-bottom:1px solid #eee;";
-        modalTitle.after(commentListDiv);
-    }
-
-    let currentPostId = null;
-
-    window.openSNSCommentModal = (post) => {
-      currentPostId = post.id;
-      modalTitle.innerText = `${post.user || "投稿者"} へのコメント`;
-      textarea.value = "";
-      
-      const comments = post.comments || [];
-      commentListDiv.innerHTML = comments.length ? comments.map(c => 
-        `<div style="font-size:0.9rem; padding:5px; border-bottom:1px solid #eee;">
-           <strong>${c.user}:</strong> ${c.text}
-         </div>`
-      ).join('') : "<p style='font-size:0.8rem; color:#888;'>コメントなし</p>";
-      
-      modal.style.display = 'flex';
-    };
-
-    window.closeCommentModal = () => {
-      modal.style.display = 'none';
-    };
-
-    window.submitComment = async () => {
-      const text = textarea.value;
-      if (!text) return;
-      
-      try {
-          // サーバーへ送信
-          const res = await fetch("/api/comment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ post_id: currentPostId, text: text })
+        // いいね！ボタン
+        card.querySelector(".like-btn").onclick = async () => {
+          await api.post("/api/like", {
+            post_id: p.id,
+            action: liked ? "unlike" : "like",
           });
-          const j = await res.json();
+          await sync();
+          render(searchInput.value);
+        };
 
-          if(j.success) {
-              alert("コメントしました");
-              closeCommentModal();
-              // 最新データを再取得して反映
-              await fetchAllPosts(); 
-              renderFeed(searchInput ? searchInput.value : "");
-          } else {
-              alert("エラー: " + j.message);
-          }
-      } catch(e) {
-          alert("送信エラー");
-      }
-    };
-  };
-
-
-  // ==========================================
-  // ★ページ初期化処理: マップ画面
-  // ==========================================
-  const initMapPage = async () => {
-    // マップ表示時も最新データを取得
-    await fetchAllPosts();
-
-    const logoutBtn = document.getElementById("logout-button");
-    if(logoutBtn) logoutBtn.onclick = logout;
-
-    const snsBtn = document.getElementById("goto-sns");
-    if(snsBtn) snsBtn.onclick = () => window.location.hash = "#sns";
-    
-    const folderBtn = document.getElementById("goto-folder");
-    if(folderBtn) folderBtn.onclick = () => alert("フォルダ機能は未実装");
-
-    // Leaflet読み込み
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
-
-    script.onload = () => {
-      if(!document.getElementById("map")) return;
-
-      const map = L.map("map");
-      
-      // マーカーアイコン定義
-      const redIcon = L.icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-      });
-      const blueIcon = new L.Icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-      });
-      // ★いいね用アイコン（黄色）
-      const yellowIcon = new L.Icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-      });
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
-
-      // 現在地へ移動
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          map.setView([lat, lng], 14);
-          L.marker([lat, lng], { icon: redIcon }).addTo(map).bindPopup("現在地");
-        },
-        () => {
-             // 取得失敗時はデフォルト位置（東京駅）
-             map.setView([35.681236, 139.767125], 14);
-        }
-      );
-
-      // ==========================================
-      // ★マップ上にピンを立てる処理
-      // ==========================================
-      
-      // 1. 全投稿データから「いいね」したものだけ抽出して黄色ピンを立てる
-      if(allSnsPosts.length > 0) {
-          allSnsPosts.forEach(post => {
-              // 自分がいいねしている ＆ 位置情報がある場合
-              if (myLikedPostIds.has(post.id) && post.lat && post.lng) {
-                  const marker = L.marker([post.lat, post.lng], { icon: yellowIcon }).addTo(map);
-                  const imgSrc = post.image || post.filepath || "";
-                  
-                  marker.bindPopup(`
-                      <b>${post.title || "No Title"}</b><br>
-                      by ${post.user || "User"}<br>
-                      ${imgSrc ? `<img src="${imgSrc}" width="100" style="margin-top:5px;">` : ''}
-                  `);
-              }
-              // ついでに「自分の投稿」も青ピンで立てても良い
-              // ここでは既存のAPI(photo/list)を使っている部分は統合してもOK
-          });
-      }
-
-      // --- 以下、カメラ・AR・既存マーカー表示機能 ---
-      const cameraVideo = document.getElementById("camera-video");
-      const cameraCanvas = document.getElementById("camera-canvas");
-      const startBtn = document.getElementById("camera-start");
-      const shootBtn = document.getElementById("camera-shoot");
-      const closeBtn = document.getElementById("camera-close");
-      const titleSection = document.getElementById("title-section");
-      const photoTitleInput = document.getElementById("photo-title");
-      const saveTitleBtn = document.getElementById("save-title");
-      const arPreview = document.getElementById("ar-preview");
-      const arImage = document.getElementById("ar-image");
-      const arClose = document.getElementById("ar-close");
-      const deleteBtn = document.getElementById("ar-delete");
-
-      let stream;
-      let currentPhotoData = null;
-      let currentLatLng = null;
-      let currentViewingId = null;
-      let markersById = new Map();
-
-      // カメラ起動
-      if(startBtn) {
-          startBtn.onclick = async () => {
-            try {
-              stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-                audio: false,
-              });
-              cameraVideo.srcObject = stream;
-              cameraVideo.style.display = "block";
-              shootBtn.classList.remove("hidden");
-              closeBtn.classList.remove("hidden");
-              startBtn.classList.add("hidden");
-            } catch (err) { alert("カメラエラー: " + err.message); }
-          };
-      }
-
-      // カメラ停止
-      if(closeBtn) {
-          closeBtn.onclick = () => {
-            if (stream) stream.getTracks().forEach((t) => t.stop());
-            cameraVideo.style.display = "none";
-            shootBtn.classList.add("hidden");
-            closeBtn.classList.add("hidden");
-            startBtn.classList.remove("hidden");
-          };
-      }
-
-      // 撮影
-      if(shootBtn) {
-          shootBtn.onclick = () => {
-            cameraCanvas.width = 1920;
-            cameraCanvas.height = 1080;
-            const ctx = cameraCanvas.getContext("2d");
-            ctx.drawImage(cameraVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
-            currentPhotoData = cameraCanvas.toDataURL("image/jpeg", 0.9);
-    
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                currentLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                closeBtn.onclick();
-                titleSection.classList.remove("hidden");
-                photoTitleInput.value = "";
-              },
-              () => alert("位置情報エラー")
-            );
-          };
-      }
-
-      // 撮影データ保存
-      if(saveTitleBtn) {
-          saveTitleBtn.onclick = async () => {
-            const title = photoTitleInput.value.trim();
-            if (!currentPhotoData || !title) return alert("データ不足");
-    
-            const fd = new FormData();
-            const blob = await (await fetch(currentPhotoData)).blob();
-            fd.append("image", blob, "photo.jpg");
-            fd.append("lat", currentLatLng.lat);
-            fd.append("lng", currentLatLng.lng);
-            fd.append("title", title);
-
-            try {
-                const res = await fetch("/api/photo/upload", { method: "POST", body: fd });
-                const j = await res.json();
-                if(!j.success) throw new Error(j.message);
-                
-                // 成功したらマップに追加
-                const marker = L.marker([currentLatLng.lat, currentLatLng.lng], { icon: blueIcon }).addTo(map);
-                marker.bindPopup(title);
-                marker.on("click", () => {
-                  currentViewingId = j.id; // サーバーが返すID
-                  if(arImage) arImage.style.backgroundImage = `url(${j.filepath})`;
-                  if(arPreview) arPreview.classList.remove("hidden");
-                });
-                markersById.set(j.id, { marker, data: { title, filepath: j.filepath } });
-                
-                // 全投稿リストも更新しておく
-                await fetchAllPosts(); 
-
-            } catch(e) {
-                alert("保存失敗: " + e.message);
+        // 削除ボタン
+        if (p.is_mine) {
+          card.querySelector(".del-post-btn").onclick = async () => {
+            if (!confirm("この作品をSNSから撤去するかい？")) return;
+            const res = await api.post("/api/sns/delete", { post_id: p.id });
+            if (res.success) {
+              await sync();
+              render(searchInput.value);
             }
-            
-            titleSection.classList.add("hidden");
-            currentPhotoData = null;
-            currentLatLng = null;
           };
-      }
+        }
+        feed.appendChild(card);
+      });
+    };
 
-      // AR閉じる
-      if(arClose) arClose.onclick = () => arPreview.classList.add("hidden");
-      
-      // 削除ボタン
-      if(deleteBtn) {
-          deleteBtn.onclick = async () => {
-              if(!currentViewingId) return;
-              try {
-                  await fetch("/api/photo/delete", {
-                      method: "POST",
-                      headers: {"Content-Type":"application/json"},
-                      body: JSON.stringify({id: currentViewingId})
-                  });
-                  // マーカー削除
-                  const target = markersById.get(currentViewingId);
-                  if(target) map.removeLayer(target.marker);
-                  arPreview.classList.add("hidden");
-                  currentViewingId = null;
-                  await fetchAllPosts(); // リスト更新
-              } catch(e) { alert("削除失敗"); }
-          };
-      }
-
-      // 自分の過去の投稿読み込み（青ピン）
-      const loadMyPhotos = async () => {
-        try {
-            const res = await fetch("/api/photo/list");
-            const j = await res.json();
-            if (!j.success) return;
-            j.photos.forEach((p) => {
-              // 重複防止：allSnsPostsですでに表示されているIDはスキップする処理などを入れてもよい
-              const marker = L.marker([p.latitude, p.longitude], { icon: blueIcon }).addTo(map);
-              marker.bindPopup(p.title || "");
-              marker.on("click", () => {
-                currentViewingId = p.id;
-                if(arImage) arImage.style.backgroundImage = `url(${p.filepath})`;
-                if(arPreview) arPreview.classList.remove("hidden");
-              });
-              markersById.set(p.id, { marker, data: p });
-            });
-        } catch(e) {}
+    // --- 📂 投稿フロー ---
+    if (openBtn) {
+      openBtn.onclick = async () => {
+        selectorModal.style.display = "flex";
+        selectionGrid.innerHTML = "ロード中だ...";
+        const j = await api.get("/api/photo/list");
+        if (j.success && j.photos.length > 0) {
+          selectionGrid.innerHTML = "";
+          j.photos.forEach((photo) => {
+            const thumb = document.createElement("div");
+            thumb.className = "selectable-thumb";
+            thumb.style.backgroundImage = `url(${photo.filepath})`;
+            thumb.onclick = () => {
+              selectorModal.style.display = "none";
+              openPublishModal(photo);
+            };
+            selectionGrid.appendChild(thumb);
+          });
+        } else {
+          selectionGrid.innerHTML = "<p>フォルダが空だぜ！</p>";
+        }
       };
-      loadMyPhotos();
+    }
 
-      // ジャイロ (擬似AR)
-      window.addEventListener("deviceorientation", (event) => {
-        if (!arPreview || arPreview.classList.contains("hidden")) return;
-        const gamma = event.gamma ?? 0;
-        const beta = event.beta ?? 0;
-        const x = ((beta + 90) / 180) * 100;
-        const y = ((gamma + 45) / 90) * 100;
-        if(arImage) arImage.style.backgroundPosition = `${x}% ${y}%`;
-      });
+    // --- 🚀 【重要】最終投稿：ここが動画の不具合を直す心臓部だ！ ---
+    const openPublishModal = (photo) => {
+      const preview = document.getElementById("selected-preview");
+      if (preview) preview.style.backgroundImage = `url(${photo.filepath})`;
+      commentModal.style.display = "flex";
+
+      const finalPostBtn = document.getElementById("final-post-btn");
+
+      // イベントが重複しないよう、onclickを直接上書きするぜ
+      finalPostBtn.onclick = async () => {
+        const caption = document.getElementById("commentText").value;
+
+        // 1. ボタンをロックして「送ってる感」を出す
+        finalPostBtn.disabled = true;
+        finalPostBtn.innerText = "シェア中...";
+
+        try {
+          const res = await api.post("/api/sns/post", {
+            photo_id: photo.id,
+            caption: caption,
+          });
+
+          if (res.success) {
+            // 2. 成功したら後片付け
+            document.getElementById("commentText").value = "";
+            commentModal.style.display = "none";
+
+            // 3. 最新状態を反映
+            await sync();
+            render();
+            alert("世界にシェアしたぜ、ブラザー！");
+          } else {
+            alert("ミスっちまった： " + res.message);
+          }
+        } catch (err) {
+          console.error(err);
+          alert("通信エラーだ、もう一度頼む！");
+        } finally {
+          // 4. 最後に必ずボタンを元に戻す
+          finalPostBtn.disabled = false;
+          finalPostBtn.innerText = "シェアする";
+        }
+      };
     };
 
-    document.body.appendChild(script);
+    // 🔍 検索
+    if (searchInput) searchInput.oninput = (e) => render(e.target.value);
+
+    render();
+    document.getElementById("back-map").onclick = () =>
+      (location.hash = "#map");
   };
 
+  // モーダルクローズ関数
+  window.closePostSelector = () =>
+    (document.getElementById("postSelectorModal").style.display = "none");
+  window.closeCommentModal = () =>
+    (document.getElementById("commentModal").style.display = "none");
+  // --- マップページ ---
+  // --- マップページ ---
+const initMapPage = async () => {
+  console.log("🚀 Mission Start: initMapPage");
+  const loadingScreen = document.getElementById('loading-screen');
+  
+  // 【セーフティ】万が一のフリーズ防止（3秒で強制開放）
+  const forceUnlock = setTimeout(() => {
+    loadingScreen?.classList.add('loading-hidden');
+  }, 3000);
 
-  // ==========================================
-  // ルーティング (画面切り替え)
-  // ==========================================
-  const router = async () => {
-    const hash = window.location.hash || "#login";
-    const page = hash.replace("#", "");
+  // --- 1. 同期・ログアウト・遷移設定 ---
+  await sync();
+  
+  document.getElementById("logout-button").onclick = async () => {
+    await fetch("/api/logout", { method: "POST" });
+    location.hash = "#login";
+  };
+  document.getElementById("goto-sns").onclick = () => (location.hash = "#sns");
+  document.getElementById("goto-folder").onclick = () => (location.hash = "#folder");
 
-    try {
-        let htmlPath = "";
-        if (page === "login") htmlPath = "/pages/login.html";
-        else if (page === "signup") htmlPath = "/pages/signup.html";
-        else if (page === "map") htmlPath = "/pages/map.html";
-        else if (page === "sns") htmlPath = "/pages/sns.html";
-        
-        if(htmlPath) {
-            const res = await fetch(htmlPath);
-            if(res.ok) {
-                appContainer.innerHTML = await res.text();
-                // 各ページの初期化関数を実行
-                if (page === "login") initLoginPage();
-                else if (page === "signup") initSignupPage();
-                else if (page === "map") initMapPage();
-                else if (page === "sns") initSNSPage();
-            } else {
-                appContainer.innerHTML = "<h1>Error: 404 Not Found</h1><p>ファイルが見つかりません: " + htmlPath + "</p>";
+  // --- 2. フッターボタンの切り替えロジック ---
+  const startBtn = document.getElementById("camera-start");
+  const closeBtn = document.getElementById("camera-close");
+  const footerDefault = document.getElementById("footer-default");
+  const footerCamera = document.getElementById("footer-camera");
+  const video = document.getElementById("camera-video");
+
+  if (startBtn) {
+    startBtn.onclick = () => {
+      footerDefault?.classList.add("hidden");
+      footerCamera?.classList.remove("hidden");
+      if (video) video.style.display = "block";
+      if (window.startCamera) window.startCamera();
+    };
+  }
+
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      footerDefault?.classList.remove("hidden");
+      footerCamera?.classList.add("hidden");
+      if (video) video.style.display = "none";
+      if (window.stopCamera) window.stopCamera();
+    };
+  }
+
+  // --- 3. 地図 (Leaflet) の初期化 ---
+  const script = document.createElement("script");
+  script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
+  script.onload = () => {
+    const map = L.map("map");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+    // アイコン設定
+    const redIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    });
+    const bIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+    });
+    const yIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+    });
+
+    // 現在地取得
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        map.setView([lat, lng], 14);
+        L.marker([lat, lng], { icon: redIcon }).addTo(map).bindPopup("現在地");
+      },
+      () => { map.setView([35.68, 139.76], 14); }
+    );
+
+    // お気に入りマーカー表示
+    allPosts.forEach((p) => {
+      if (myLikes.has(p.id) && p.lat && p.lng) {
+        L.marker([p.lat, p.lng], { icon: yIcon }).addTo(map)
+          .bindPopup(`<b>${p.title}</b><br><img src="${p.image || p.filepath}" width="80">`);
+      }
+    });
+
+    // 写真リスト取得 & マーカー設置
+    api.get("/api/photo/list").then((j) => {
+      if (j.success) {
+        j.photos.forEach((p) => {
+          const m = L.marker([p.latitude, p.longitude], { icon: bIcon }).addTo(map);
+          m.on("click", () => {
+            const ar = document.getElementById("ar-preview");
+            if (ar) {
+              document.getElementById("ar-image").style.backgroundImage = `url(${p.filepath})`;
+              ar.classList.remove("hidden");
             }
-        }
-    } catch(e) {
-        console.error("Routing Error", e);
-    }
+            document.getElementById("ar-delete").onclick = async () => {
+              if (!confirm("この投稿を削除しますか？")) return;
+              await api.post("/api/photo/delete", { id: p.id });
+              map.removeLayer(m);
+              ar.classList.add("hidden");
+            };
+            document.getElementById("ar-close").onclick = () => ar.classList.add("hidden");
+          });
+        });
+      }
+      
+      // 【重要】全てのマーカー設置が終わったらロード画面を消す！
+      clearTimeout(forceUnlock);
+      setTimeout(() => {
+        loadingScreen?.classList.add('loading-hidden');
+        map.invalidateSize(); // 地図の表示崩れを直す
+      }, 500);
+    });
+
+    initCameraSystem();
+  };
+  document.body.appendChild(script);
+};
+  // --- フォルダページ (編集機能付き) ---
+  const initFolderPage = async () => {
+    const j = await api.get("/api/photo/list"),
+      list = document.getElementById("folder-list");
+    const modal = document.getElementById("preview-modal"),
+      img = document.getElementById("preview-image");
+    const editCanvas = document.getElementById("edit-canvas"),
+      editTools = document.getElementById("edit-tools");
+    const editBtn = document.getElementById("preview-edit"),
+      saveBtn = document.getElementById("preview-save");
+    const ctx = editCanvas.getContext("2d");
+
+    let drawing = false,
+      currentColor = "#ff0000",
+      currentPhotoId = null;
+
+    if (!j.success || !list) return;
+
+    list.innerHTML = "";
+    j.photos.forEach((p) => {
+      const card = document.createElement("div");
+      card.className = "photo-card";
+      card.innerHTML = `<div class="photo-thumb" style="background-image:url('${
+        p.filepath
+      }')"></div><div class="photo-title">${p.title || ""}</div>`;
+
+      card.onclick = () => {
+        currentPhotoId = p.id;
+        img.src = p.filepath;
+        img.classList.remove("hidden");
+        editCanvas.classList.add("hidden");
+        editTools.classList.add("hidden");
+        saveBtn.classList.add("hidden");
+        editBtn.classList.remove("hidden");
+        document.getElementById("preview-title").innerText = p.title || "";
+        modal.classList.remove("hidden");
+
+        // 削除ボタン設定
+        document.getElementById("preview-delete").onclick = async () => {
+          if (!confirm("削除しますか？")) return;
+          await api.del(`/api/photo/${p.id}`);
+          modal.classList.add("hidden");
+          initFolderPage();
+        };
+      };
+      list.appendChild(card);
+    });
+
+    // 🎨 編集モード開始
+    editBtn.onclick = () => {
+      // キャンバスのサイズを画像の表示サイズに合わせる
+      editCanvas.width = img.naturalWidth;
+      editCanvas.height = img.naturalHeight;
+      // 元画像をキャンバスに描く
+      ctx.drawImage(img, 0, 0);
+
+      img.classList.add("hidden");
+      editCanvas.classList.remove("hidden");
+      editTools.classList.remove("hidden");
+      editBtn.classList.add("hidden");
+      saveBtn.classList.remove("hidden");
+
+      // お絵描き設定
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = Math.max(editCanvas.width / 50, 5);
+      ctx.lineCap = "round";
+    };
+
+    // お絵描きロジック
+    const getPos = (e) => {
+      const rect = editCanvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (editCanvas.width / rect.width),
+        y: (clientY - rect.top) * (editCanvas.height / rect.height),
+      };
+    };
+    const start = (e) => {
+      e.preventDefault();
+      drawing = true;
+      ctx.beginPath();
+      const p = getPos(e);
+      ctx.moveTo(p.x, p.y);
+    };
+    const move = (e) => {
+      if (!drawing) return;
+      e.preventDefault();
+      const p = getPos(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    };
+    const stop = () => {
+      drawing = false;
+    };
+
+    editCanvas.addEventListener("mousedown", start);
+    editCanvas.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", stop);
+    editCanvas.addEventListener("touchstart", start, { passive: false });
+    editCanvas.addEventListener("touchmove", move, { passive: false });
+    editCanvas.addEventListener("touchend", stop);
+
+    // 色選択
+    document.querySelectorAll(".swatch").forEach((s) => {
+      s.onclick = () => {
+        document.querySelector(".swatch.active")?.classList.remove("active");
+        s.classList.add("active");
+        currentColor = s.dataset.color;
+        ctx.strokeStyle = currentColor;
+      };
+    });
+
+    // 💾 上書き保存
+    saveBtn.onclick = async () => {
+      const data = editCanvas.toDataURL("image/jpeg", 0.8);
+      const blob = await (await fetch(data)).blob();
+      const fd = new FormData();
+      fd.append("image", blob, "edited.jpg");
+      fd.append("photo_id", currentPhotoId); // サーバー側でIDを受け取って上書きする処理が必要
+
+      alert("アートを保存中だ...");
+      // 新規投稿として扱うか、上書きAPIを叩くか。
+      // ここでは、お前の既存の /api/photo/upload を流用する想定だ（必要に応じてサーバー側も調整してくれ）。
+      const res = await api.form("/api/photo/upload", fd);
+      if (res.success) {
+        modal.classList.add("hidden");
+        initFolderPage();
+      }
+    };
+
+    document.getElementById("preview-close").onclick = () =>
+      modal.classList.add("hidden");
+    document.getElementById("back-map").onclick = () =>
+      (location.hash = "#map");
   };
 
+  // --- ★進化したカメラ撮影＆落書きロジック ---
+  const initCameraSystem = () => {
+    const v = document.getElementById("camera-video"),
+      can = document.getElementById("camera-canvas");
+    const sBtn = document.getElementById("camera-start"),
+      shBtn = document.getElementById("camera-shoot");
+    const cBtn = document.getElementById("camera-close"),
+      saveEditBtn = document.getElementById("camera-save-edit");
+    const tools = document.getElementById("graffiti-tools"),
+      titleSec = document.getElementById("title-section");
+    const ctx = can.getContext("2d");
+
+    let drawing = false,
+      currentColor = "#ff0000";
+
+    // カメラ開始
+    if (sBtn)
+      sBtn.onclick = async () => {
+        v.srcObject = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        v.style.display = "block";
+        sBtn.classList.add("hidden");
+        shBtn.classList.remove("hidden");
+        cBtn.classList.remove("hidden");
+      };
+
+    // 撮影：映像をキャンバスに固めて編集モードへ
+    if (shBtn)
+      shBtn.onclick = () => {
+        can.width = v.videoWidth;
+        can.height = v.videoHeight;
+        ctx.drawImage(v, 0, 0, can.width, can.height);
+        v.style.display = "none";
+        can.classList.remove("hidden");
+        shBtn.classList.add("hidden");
+        if (saveEditBtn) saveEditBtn.classList.remove("hidden");
+        if (titleSec) titleSec.classList.remove("hidden");
+        if (tools) tools.classList.remove("hidden");
+        // お絵描き初期設定
+        ctx.strokeStyle = currentColor;
+        ctx.lineWidth = 6;
+        ctx.lineCap = "round";
+      };
+
+    // お絵描きロジック
+    const getPos = (e) => {
+      const rect = can.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (can.width / rect.width),
+        y: (clientY - rect.top) * (can.height / rect.height),
+      };
+    };
+    const start = (e) => {
+      if (can.classList.contains("hidden")) return;
+      e.preventDefault();
+      drawing = true;
+      ctx.beginPath();
+      const p = getPos(e);
+      ctx.moveTo(p.x, p.y);
+    };
+    const move = (e) => {
+      if (!drawing) return;
+      e.preventDefault();
+      const p = getPos(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    };
+    const stop = () => {
+      drawing = false;
+    };
+
+    can.addEventListener("mousedown", start);
+    can.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", stop);
+    can.addEventListener("touchstart", start, { passive: false });
+    can.addEventListener("touchmove", move, { passive: false });
+    can.addEventListener("touchend", stop);
+
+    // パレット＆クリア
+    document.querySelectorAll(".swatch").forEach((s) => {
+      s.onclick = () => {
+        document.querySelector(".swatch.active")?.classList.remove("active");
+        s.classList.add("active");
+        currentColor = s.dataset.color;
+        ctx.strokeStyle = currentColor;
+      };
+    });
+    const clearBtn = document.getElementById("camera-clear");
+    if (clearBtn)
+      clearBtn.onclick = () => ctx.drawImage(v, 0, 0, can.width, can.height);
+
+    // 保存
+    if (saveEditBtn)
+      saveEditBtn.onclick = async () => {
+        const title = document.getElementById("photo-title").value || "無題";
+        const data = can.toDataURL("image/jpeg", 0.8);
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          const fd = new FormData();
+          const blob = await (await fetch(data)).blob();
+          fd.append("image", blob, "art.jpg");
+          fd.append("lat", pos.coords.latitude);
+          fd.append("lng", pos.coords.longitude);
+          fd.append("title", title);
+          const res = await api.form("/api/photo/upload", fd);
+          if (res.success) location.reload();
+        });
+      };
+
+    if (cBtn) cBtn.onclick = () => location.reload();
+  };
+
+  // --- コメントモーダル ---
+  const openCommentModal = (p) => {
+    const m = document.getElementById("commentModal"),
+      l = document.getElementById("comment-list-area"),
+      t = document.getElementById("commentText");
+    document.getElementById("modalTitle").innerText = `${p.user}へのコメント`;
+    l.innerHTML =
+      (p.comments || [])
+        .map((c) => `<div><b>${c.user}:</b> ${c.text}</div>`)
+        .join("") || "コメントなし";
+    m.style.display = "flex";
+    document.getElementById("submit-comment-btn").onclick = async () => {
+      if (!t.value) return;
+      await api.post("/api/comment", { post_id: p.id, text: t.value });
+      m.style.display = "none";
+      await sync();
+      if (location.hash === "#sns") initSNS();
+    };
+  };
+
+  // --- ルーティング ---
+  const router = async () => {
+    const page = (location.hash || "#login").replace("#", "");
+    const res = await fetch(`/pages/${page}.html`);
+    if (!res.ok) return;
+    app.innerHTML = await res.text();
+    if (page === "login") initAuth("login");
+    else if (page === "signup") initAuth("signup");
+    else if (page === "map") initMapPage();
+    else if (page === "sns") initSNS();
+    else if (page === "folder") initFolderPage();
+  };
+
+  window.closeCommentModal = () =>
+    (document.getElementById("commentModal").style.display = "none");
   window.addEventListener("hashchange", router);
-  router(); // 初回実行
+  router();
+
+  // ARジャイロ連動
+  window.addEventListener("deviceorientation", (e) => {
+    const ar = document.getElementById("ar-preview"),
+      img = document.getElementById("ar-image");
+    if (ar && !ar.classList.contains("hidden")) {
+      const x = ((e.beta + 90) / 180) * 100,
+        y = ((e.gamma + 45) / 90) * 100;
+      if (img) img.style.backgroundPosition = `${x}% ${y}%`;
+    }
+  });
 });

@@ -1,86 +1,359 @@
-<!-- Leaflet CSS -->
+<div id="loading-screen" class="loading-overlay">
+  <div class="loader-content">
+    <div class="scanner-circle"></div>
+    <p class="loading-text">NOW LOADING...</p>
+  </div>
+</div>
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
 <div class="page-wrapper">
-
-  <!-- タイトルバー -->
   <header class="header">
     <h2>MAP</h2>
   </header>
 
-  <!-- 地図表示 -->
   <div id="map"></div>
 
-  <!-- 撮影セクション -->
   <div class="camera-section">
-    <!-- カメラ映像 -->
-    <video id="camera-video" class="camera-video" autoplay playsinline></video>
-    <canvas id="camera-canvas" class="hidden"></canvas>
+    <div class="camera-container">
+      <video
+        id="camera-video"
+        class="camera-video"
+        autoplay
+        playsinline
+      ></video>
+      <canvas id="camera-canvas" class="hidden"></canvas>
 
-    <!-- ボタン群 -->
-    <div style="margin-top: 8px;">
-      <button id="camera-start" class="camera-btn blue-btn">📷 カメラを起動</button>
-      <button id="camera-shoot" class="camera-btn green-btn hidden">📸 撮影</button>
-      <button id="camera-close" class="camera-btn red-btn hidden">❌ 閉じる</button>
-      <button id="camera-delete" class="camera-btn black-btn hidden">削除</button>
+      <div id="graffiti-tools" class="graffiti-tools hidden">
+        <div class="palette">
+          <div
+            class="swatch active"
+            style="background: #ff0000"
+            data-color="#ff0000"
+          ></div>
+          <div
+            class="swatch"
+            style="background: #00ff00"
+            data-color="#00ff00"
+          ></div>
+          <div
+            class="swatch"
+            style="background: #ffff00"
+            data-color="#ffff00"
+          ></div>
+          <div
+            class="swatch"
+            style="background: #ffffff"
+            data-color="#ffffff"
+          ></div>
+          <div
+            class="swatch"
+            style="background: #000000"
+            data-color="#000000"
+          ></div>
+        </div>
+        <button id="camera-clear" class="clear-btn">やり直し</button>
+      </div>
+    </div>
+
+    <div style="margin-top: 8px; text-align: center">
+      <button id="camera-start" class="camera-btn blue-btn">
+        📷 カメラを起動
+      </button>
+      <button id="camera-shoot" class="camera-btn green-btn hidden">
+        📸 撮影
+      </button>
+      <button id="camera-save-edit" class="camera-btn green-btn hidden">
+        ✨ 落書きを保存
+      </button>
+      <button id="camera-close" class="camera-btn red-btn hidden">
+        ❌ 閉じる
+      </button>
     </div>
   </div>
 
-  <!-- タイトル入力セクション -->
-  <div id="title-section" class="hidden" style="text-align:center; margin-bottom:10px;">
-    <input type="text" id="photo-title" placeholder="タイトルを入力" style="padding:6px 8px; width:70%; border-radius:6px; border:1px solid #ccc;">
-    <button id="save-title" class="camera-btn green-btn">保存</button>
+  <div
+    id="title-section"
+    class="hidden"
+    style="text-align: center; margin-bottom: 10px"
+  >
+    <input
+      type="text"
+      id="photo-title"
+      placeholder="タイトルを入力"
+      style="
+        padding: 6px 8px;
+        width: 70%;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+      "
+    />
   </div>
 
-  <!-- ARプレビュー -->
   <div id="ar-preview" class="ar-preview hidden">
     <h3 class="ar-title">撮影画像プレビュー</h3>
     <div id="ar-image" class="ar-image"></div>
-    <div style="display:flex; gap:8px; justify-content:flex-end;">
+    <div
+      style="
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 10px;
+      "
+    >
       <button id="ar-close" class="close-btn">閉じる</button>
       <button id="ar-delete" class="delete-btn">削除</button>
     </div>
   </div>
 
-  <!-- メニュー -->
   <div class="menu-section">
     <button id="goto-sns" class="menu-btn">SNS</button>
     <button id="goto-folder" class="menu-btn">フォルダ</button>
   </div>
 
-  <!-- フッター -->
   <footer class="footer">
     <button id="logout-button" class="logout-btn">ログアウト</button>
   </footer>
-
 </div>
-
 <style>
-html, body { height: 100%; margin: 0; padding:0; }
-.page-wrapper { height: 100vh; display:flex; flex-direction:column; box-sizing:border-box; }
-.header { background:#FFC107; padding:12px; text-align:center; font-size:22px; font-weight:bold; }
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: sans-serif;
+    overflow-x: hidden;
+  }
 
-#map { width:100%; height:45vh; max-height:420px; margin:10px 0; border-radius:10px; }
+  /* --- 1. ロード画面（NOW LOADING）の鉄壁設定 --- */
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000; /* 全ての要素の頂点 */
+    transition: opacity 0.8s ease-out, visibility 0.8s;
+  }
 
-.camera-section { text-align:center; margin-bottom:10px; }
-.camera-video { width:92%; max-width:420px; border-radius:10px; display:none; }
-.camera-btn { padding:10px 22px; border:none; border-radius:8px; color:#fff; font-size:18px; margin-top:8px; cursor:pointer; }
-.blue-btn { background:#2E6FBA; }
-.green-btn { background:#2ebd70; }
-.red-btn { background:#f44336; }
-.black-btn {background:#000000; }
-.hidden { display:none; }
+  /* ロード画面を消すための合言葉 */
+  .loading-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
 
-.ar-preview { width:92%; margin:0 auto 12px auto; padding:12px; background:#fff; border-radius:10px; border:1px solid #ddd; }
-.ar-image { width:100%; height:180px; background-size:cover; background-position:center; border-radius:8px; margin-bottom:8px; }
-.close-btn { background:#ff5a5a; color:#fff; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; }
-.delete-btn {background:#000000; color:#fff; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; }
+  .scanner-circle {
+    width: 60px;
+    height: 60px;
+    border: 4px double #3b82f6; /* メイン青 */
+    border-top-color: #fff;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    animation: spin 1s linear infinite;
+  }
 
-.menu-section { display:flex; justify-content:space-around; margin:15px 0; }
-.menu-btn { width:40%; padding:15px; border:none; border-radius:10px; background:#2E6FBA; color:white; font-size:18px; }
+  .loading-text {
+    color: #facc15; /* アクセント黄 */
+    font-family: monospace;
+    letter-spacing: 5px;
+    text-align: center;
+    animation: blink 0.8s infinite;
+  }
 
-.footer { padding:15px; text-align:center; }
-.logout-btn { width:90%; padding:14px; background:#ff5a5a; color:white; border:none; border-radius:10px; font-size:18px; }
+  /* --- 2. 基本レイアウト --- */
+  .page-wrapper {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    background: #fafafa;
+  }
 
-#title-section input { font-size:16px; }
+  .header {
+    background: #ffc107;
+    padding: 12px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 100;
+  }
+
+  /* --- 3. マップ（重なりを地図より上に） --- */
+  #map {
+    width: 100%;
+    height: 45vh;
+    max-height: 420px;
+    margin: 10px 0;
+    border-radius: 10px;
+    z-index: 1; /* 地図は一番下 */
+  }
+
+  /* --- 4. カメラセクション --- */
+  .camera-section {
+    text-align: center;
+    margin-bottom: 10px;
+    position: relative;
+    z-index: 10;
+  }
+
+  .camera-container {
+    position: relative;
+    width: 92%;
+    max-width: 420px;
+    margin: 0 auto;
+    line-height: 0;
+  }
+
+  .camera-video {
+    width: 100%;
+    border-radius: 10px;
+    display: none;
+    object-fit: cover;
+  }
+
+  #camera-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    touch-action: none;
+    z-index: 5;
+  }
+
+  /* 落書きツール */
+  .graffiti-tools {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .palette {
+    display: flex;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px;
+    border-radius: 20px;
+  }
+
+  .swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid white;
+    cursor: pointer;
+  }
+
+  .swatch.active {
+    transform: scale(1.2);
+    border-color: #ffc107;
+  }
+
+  /* --- 5. ボタン関連 --- */
+  .camera-btn {
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 18px;
+    margin-top: 8px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .blue-btn {
+    background: #2e6fba;
+  }
+  .green-btn {
+    background: #2ebd70;
+  }
+  .red-btn {
+    background: #f44336;
+  }
+  .hidden {
+    display: none !important;
+  }
+
+  /* --- 6. プレビュー ＆ メニュー --- */
+  .ar-preview {
+    width: 92%;
+    margin: 0 auto 12px auto;
+    padding: 12px;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #ddd;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 200;
+  }
+
+  .ar-image {
+    width: 100%;
+    height: 180px;
+    background-size: cover;
+    background-position: center;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+
+  .menu-section {
+    display: flex;
+    justify-content: space-around;
+    margin: 15px 0;
+  }
+
+  .menu-btn {
+    width: 40%;
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    background: #2e6fba;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+  }
+
+  .footer {
+    padding: 15px;
+    text-align: center;
+  }
+
+  .logout-btn {
+    width: 90%;
+    padding: 14px;
+    background: #ff5a5a;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 18px;
+  }
+
+  /* --- 7. アニメーション --- */
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
 </style>
