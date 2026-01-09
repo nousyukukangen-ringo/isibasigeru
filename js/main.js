@@ -224,17 +224,16 @@ document.addEventListener("DOMContentLoaded", () => {
   window.closeCommentModal = () =>
     (document.getElementById("commentModal").style.display = "none");
   // --- マップページ ---
-  // --- マップページ ---
 const initMapPage = async () => {
-  console.log("🚀 Mission Start: initMapPage");
+  console.log("🚀 Mission Start: 巡礼地図初期化");
   const loadingScreen = document.getElementById('loading-screen');
   
-  // 【セーフティ】万が一のフリーズ防止（3秒で強制開放）
+  // 【1. セーフティ】3秒で強制開放
   const forceUnlock = setTimeout(() => {
     loadingScreen?.classList.add('loading-hidden');
   }, 3000);
 
-  // --- 1. 同期・ログアウト・遷移設定 ---
+  // --- 2. 同期・ログアウト・遷移設定 ---
   await sync();
   
   document.getElementById("logout-button").onclick = async () => {
@@ -244,22 +243,28 @@ const initMapPage = async () => {
   document.getElementById("goto-sns").onclick = () => (location.hash = "#sns");
   document.getElementById("goto-folder").onclick = () => (location.hash = "#folder");
 
-  // --- 2. フッターボタンの切り替えロジック ---
+  // --- 3. 和風フッター制御ロジック ---
   const startBtn = document.getElementById("camera-start");
   const closeBtn = document.getElementById("camera-close");
+  const shootBtn = document.getElementById("camera-shoot");
+  const saveBtn  = document.getElementById("camera-save-edit");
   const footerDefault = document.getElementById("footer-default");
   const footerCamera = document.getElementById("footer-camera");
   const video = document.getElementById("camera-video");
 
+  // 【写し絵 開始】
   if (startBtn) {
     startBtn.onclick = () => {
       footerDefault?.classList.add("hidden");
       footerCamera?.classList.remove("hidden");
+      saveBtn?.classList.add("hidden"); // 保存は撮影するまで隠す
+      shootBtn?.classList.remove("hidden"); // 撮影ボタンを表示
       if (video) video.style.display = "block";
       if (window.startCamera) window.startCamera();
     };
   }
 
+  // 【写し絵 中止・終了】
   if (closeBtn) {
     closeBtn.onclick = () => {
       footerDefault?.classList.remove("hidden");
@@ -269,14 +274,28 @@ const initMapPage = async () => {
     };
   }
 
-  // --- 3. 地図 (Leaflet) の初期化 ---
+  // 【写し絵 撮影成功時】
+  // ※撮影後に保存ボタンを出したい場合は、camera-shootのonclickにこれを仕込むぜ
+  if (shootBtn) {
+    const originalShoot = shootBtn.onclick;
+    shootBtn.onclick = () => {
+      // 既存の撮影処理を実行（もしあれば）
+      if (originalShoot) originalShoot();
+      
+      // 撮影が終わったら「撮影」を隠して「保存」を出す
+      shootBtn.classList.add("hidden");
+      saveBtn?.classList.remove("hidden");
+    };
+  }
+
+  // --- 4. 地図 (Leaflet) の初期化 ---
   const script = document.createElement("script");
   script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
   script.onload = () => {
     const map = L.map("map");
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-    // アイコン設定
+    // 筆跡（アイコン）設定
     const redIcon = L.icon({
       iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
       shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
@@ -291,7 +310,7 @@ const initMapPage = async () => {
       iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
     });
 
-    // 現在地取得
+    // 現在地取得（位置情報の儀）
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude, lng = pos.coords.longitude;
@@ -301,7 +320,7 @@ const initMapPage = async () => {
       () => { map.setView([35.68, 139.76], 14); }
     );
 
-    // お気に入りマーカー表示
+    // お気に入り表示
     allPosts.forEach((p) => {
       if (myLikes.has(p.id) && p.lat && p.lng) {
         L.marker([p.lat, p.lng], { icon: yIcon }).addTo(map)
@@ -309,7 +328,7 @@ const initMapPage = async () => {
       }
     });
 
-    // 写真リスト取得 & マーカー設置
+    // 蔵（フォルダ）から写真を取得
     api.get("/api/photo/list").then((j) => {
       if (j.success) {
         j.photos.forEach((p) => {
@@ -321,7 +340,7 @@ const initMapPage = async () => {
               ar.classList.remove("hidden");
             }
             document.getElementById("ar-delete").onclick = async () => {
-              if (!confirm("この投稿を削除しますか？")) return;
+              if (!confirm("この写し絵を抹消しますか？")) return;
               await api.post("/api/photo/delete", { id: p.id });
               map.removeLayer(m);
               ar.classList.add("hidden");
@@ -331,15 +350,16 @@ const initMapPage = async () => {
         });
       }
       
-      // 【重要】全てのマーカー設置が終わったらロード画面を消す！
+      // 【完了】すべての読み込みが済んだら、ロード画面を撤去！
       clearTimeout(forceUnlock);
       setTimeout(() => {
         loadingScreen?.classList.add('loading-hidden');
-        map.invalidateSize(); // 地図の表示崩れを直す
+        // 地図のサイズを再計算（表示崩れ防止）
+        setTimeout(() => map.invalidateSize(), 400);
       }, 500);
     });
 
-    initCameraSystem();
+    if (typeof initCameraSystem === 'function') initCameraSystem();
   };
   document.body.appendChild(script);
 };
