@@ -224,106 +224,125 @@ document.addEventListener("DOMContentLoaded", () => {
   window.closeCommentModal = () =>
     (document.getElementById("commentModal").style.display = "none");
   // --- マップページ ---
-  const initMapPage = async () => {
-    await sync();
-    document.getElementById("logout-button").onclick = async () => {
-      await fetch("/api/logout", { method: "POST" });
-      location.hash = "#login";
-    };
-    document.getElementById("goto-sns").onclick = () =>
-      (location.hash = "#sns");
-    document.getElementById("goto-folder").onclick = () =>
-      (location.hash = "#folder");
+  // --- マップページ ---
+const initMapPage = async () => {
+  console.log("🚀 Mission Start: initMapPage");
+  const loadingScreen = document.getElementById('loading-screen');
+  
+  // 【セーフティ】万が一のフリーズ防止（3秒で強制開放）
+  const forceUnlock = setTimeout(() => {
+    loadingScreen?.classList.add('loading-hidden');
+  }, 3000);
 
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
-    script.onload = () => {
-      const map = L.map("map");
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(
-        map
-      );
-
-      const redIcon = L.icon({
-        iconUrl:
-          "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
-        shadowUrl:
-          "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41],
-      });
-      const bIcon = L.icon({
-        iconUrl:
-          "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-      });
-      const yIcon = L.icon({
-        iconUrl:
-          "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-      });
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude,
-            lng = pos.coords.longitude;
-          map.setView([lat, lng], 14);
-          L.marker([lat, lng], { icon: redIcon })
-            .addTo(map)
-            .bindPopup("現在地");
-        },
-        () => {
-          map.setView([35.68, 139.76], 14);
-        }
-      );
-
-      allPosts.forEach((p) => {
-        if (myLikes.has(p.id) && p.lat && p.lng) {
-          L.marker([p.lat, p.lng], { icon: yIcon })
-            .addTo(map)
-            .bindPopup(
-              `<b>${p.title}</b><br><img src="${
-                p.image || p.filepath
-              }" width="80">`
-            );
-        }
-      });
-
-      api.get("/api/photo/list").then((j) => {
-        if (j.success)
-          j.photos.forEach((p) => {
-            const m = L.marker([p.latitude, p.longitude], {
-              icon: bIcon,
-            }).addTo(map);
-            m.on("click", () => {
-              const ar = document.getElementById("ar-preview");
-              if (ar) {
-                document.getElementById(
-                  "ar-image"
-                ).style.backgroundImage = `url(${p.filepath})`;
-                ar.classList.remove("hidden");
-              }
-              document.getElementById("ar-delete").onclick = async () => {
-                if (!confirm("この投稿を削除しますか？")) return;
-                await api.post("/api/photo/delete", { id: p.id });
-                map.removeLayer(m);
-                ar.classList.add("hidden");
-              };
-              document.getElementById("ar-close").onclick = () =>
-                ar.classList.add("hidden");
-            });
-          });
-      });
-
-      initCameraSystem();
-    };
-    document.body.appendChild(script);
+  // --- 1. 同期・ログアウト・遷移設定 ---
+  await sync();
+  
+  document.getElementById("logout-button").onclick = async () => {
+    await fetch("/api/logout", { method: "POST" });
+    location.hash = "#login";
   };
+  document.getElementById("goto-sns").onclick = () => (location.hash = "#sns");
+  document.getElementById("goto-folder").onclick = () => (location.hash = "#folder");
+
+  // --- 2. フッターボタンの切り替えロジック ---
+  const startBtn = document.getElementById("camera-start");
+  const closeBtn = document.getElementById("camera-close");
+  const footerDefault = document.getElementById("footer-default");
+  const footerCamera = document.getElementById("footer-camera");
+  const video = document.getElementById("camera-video");
+
+  if (startBtn) {
+    startBtn.onclick = () => {
+      footerDefault?.classList.add("hidden");
+      footerCamera?.classList.remove("hidden");
+      if (video) video.style.display = "block";
+      if (window.startCamera) window.startCamera();
+    };
+  }
+
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      footerDefault?.classList.remove("hidden");
+      footerCamera?.classList.add("hidden");
+      if (video) video.style.display = "none";
+      if (window.stopCamera) window.stopCamera();
+    };
+  }
+
+  // --- 3. 地図 (Leaflet) の初期化 ---
+  const script = document.createElement("script");
+  script.src = "https://unpkg.com/leaflet/dist/leaflet.js";
+  script.onload = () => {
+    const map = L.map("map");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+    // アイコン設定
+    const redIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    });
+    const bIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+    });
+    const yIcon = L.icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
+      iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+    });
+
+    // 現在地取得
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        map.setView([lat, lng], 14);
+        L.marker([lat, lng], { icon: redIcon }).addTo(map).bindPopup("現在地");
+      },
+      () => { map.setView([35.68, 139.76], 14); }
+    );
+
+    // お気に入りマーカー表示
+    allPosts.forEach((p) => {
+      if (myLikes.has(p.id) && p.lat && p.lng) {
+        L.marker([p.lat, p.lng], { icon: yIcon }).addTo(map)
+          .bindPopup(`<b>${p.title}</b><br><img src="${p.image || p.filepath}" width="80">`);
+      }
+    });
+
+    // 写真リスト取得 & マーカー設置
+    api.get("/api/photo/list").then((j) => {
+      if (j.success) {
+        j.photos.forEach((p) => {
+          const m = L.marker([p.latitude, p.longitude], { icon: bIcon }).addTo(map);
+          m.on("click", () => {
+            const ar = document.getElementById("ar-preview");
+            if (ar) {
+              document.getElementById("ar-image").style.backgroundImage = `url(${p.filepath})`;
+              ar.classList.remove("hidden");
+            }
+            document.getElementById("ar-delete").onclick = async () => {
+              if (!confirm("この投稿を削除しますか？")) return;
+              await api.post("/api/photo/delete", { id: p.id });
+              map.removeLayer(m);
+              ar.classList.add("hidden");
+            };
+            document.getElementById("ar-close").onclick = () => ar.classList.add("hidden");
+          });
+        });
+      }
+      
+      // 【重要】全てのマーカー設置が終わったらロード画面を消す！
+      clearTimeout(forceUnlock);
+      setTimeout(() => {
+        loadingScreen?.classList.add('loading-hidden');
+        map.invalidateSize(); // 地図の表示崩れを直す
+      }, 500);
+    });
+
+    initCameraSystem();
+  };
+  document.body.appendChild(script);
+};
   // --- フォルダページ (編集機能付き) ---
   const initFolderPage = async () => {
     const j = await api.get("/api/photo/list"),
