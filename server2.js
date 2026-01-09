@@ -11,7 +11,7 @@ const app = express();
 const port = process.env.PORT || 3002;
 
 // ----------------------------------
-// SQLite 設定
+// SQLite 設定 & テーブル作成
 // ----------------------------------
 const DB_FILE = path.join(__dirname, "users.db");
 const db = new Database(DB_FILE);
@@ -28,7 +28,7 @@ db.prepare(
 `
 ).run();
 
-// photos テーブル
+// photos テーブル (自分のフォルダ用)
 db.prepare(
   `
   CREATE TABLE IF NOT EXISTS photos (
@@ -37,7 +37,32 @@ db.prepare(
     filepath TEXT,
     latitude REAL,
     longitude REAL,
+    title TEXT,
     created_at TEXT
+  )
+`
+).run();
+
+// ★ SNS投稿テーブル (みんなに見える投稿)
+db.prepare(
+  `
+  CREATE TABLE IF NOT EXISTS posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT,
+    photo_id INTEGER,
+    caption TEXT,
+    created_at TEXT
+  )
+`
+).run();
+
+// ★ いいねテーブル
+db.prepare(
+  `
+  CREATE TABLE IF NOT EXISTS likes (
+    user_email TEXT,
+    post_id INTEGER,
+    PRIMARY KEY (user_email, post_id)
   )
 `
 ).run();
@@ -60,7 +85,7 @@ app.use(
   })
 );
 
-// 静的ファイル
+// 静的ファイル公開
 app.use("/js", express.static(path.join(__dirname, "js")));
 app.use("/pages", express.static(path.join(__dirname, "pages")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -70,285 +95,158 @@ app.use(express.static(path.join(__dirname)));
 // multer 設定（アップロード）
 // ----------------------------------
 const uploadPath = path.join(__dirname, "uploads");
-
-if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath);
-}
+if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadPath);
-  },
+  destination: (req, file, cb) => cb(null, uploadPath),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, "photo-" + unique + ext);
   },
 });
-
 const upload = multer({ storage });
 
 // ----------------------------------
-// SPA ルート
-// ----------------------------------
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
-
-// ----------------------------------
-// API: login
+// 認証系 API
 // ----------------------------------
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password)
-      return res.status(400).json({ success: false, message: "入力必須です" });
-
     const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
-
-    if (!user)
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return res
         .status(401)
-        .json({
-          success: false,
-          message: "メールアドレスまたはパスワードが無効です",
-        });
-
-    const match = await bcrypt.compare(password, user.password);
-    if (!match)
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: "メールアドレスまたはパスワードが無効です",
-        });
-
-    req.session.regenerate((err) => {
-      if (err)
-        return res
-          .status(500)
-          .json({ success: false, message: "サーバーエラー" });
-
-      req.session.user = {
-        email: user.email,
-        kibidango: user.kibidango,
-        isAdmin: false,
-      };
-      return res.json({ success: true, user: req.session.user });
-    });
+        .json({ success: false, message: "無効なログインです" });
+    }
+    req.session.user = { email: user.email, kibidango: user.kibidango };
+    res.json({ success: true, user: req.session.user });
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ success: false, message: "サーバーエラー" });
+    res.status(500).json({ success: false });
   }
 });
 
-// ----------------------------------
-// API: signup
-// ----------------------------------
 app.post("/api/signup", async (req, res) => {
+  const { email, password } = req.body;
+  const hashed = await bcrypt.hash(password, 10);
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password)
-      return res.status(400).json({ success: false, message: "入力必須です" });
-
-    const exists = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
-    if (exists)
-      return res
-        .status(409)
-        .json({ success: false, message: "既に使用されています" });
-
-    const hashed = await bcrypt.hash(password, 10);
-
-    db.prepare(
-      "INSERT INTO users (email, password, kibidango) VALUES (?, ?, 0)"
-    ).run(email, hashed);
-
-    res.json({
-      success: true,
-      message: "アカウント作成完了！ログインしてください。",
-    });
+    db.prepare("INSERT INTO users (email, password) VALUES (?, ?)").run(
+      email,
+      hashed
+    );
+    res.json({ success: true });
   } catch (err) {
-    console.error("Signup error:", err);
-    res.status(500).json({ success: false, message: "サーバーエラー" });
+    res.status(409).json({ success: false, message: "登録済みです" });
   }
 });
 
-// ----------------------------------
-// API: me
-// ----------------------------------
-app.get("/api/me", (req, res) => {
-  if (!req.session.user) return res.json({ loggedIn: false });
-  res.json({ loggedIn: true, user: req.session.user });
-});
-
-// ----------------------------------
-// API: logout
-// ----------------------------------
+app.get("/api/me", (req, res) =>
+  res.json({ loggedIn: !!req.session.user, user: req.session.user })
+);
 app.post("/api/logout", (req, res) => {
-  req.session.destroy((err) => {
-    if (err)
-      return res
-        .status(500)
-        .json({ success: false, message: "ログアウトできませんでした" });
-
-    res.json({ success: true });
-  });
+  req.session.destroy();
+  res.json({ success: true });
 });
 
-// photos テーブルに title カラム追加（既存テーブル対応）
-const columns = db.prepare("PRAGMA table_info(photos)").all();
-if (!columns.find((c) => c.name === "title")) {
-  db.prepare(`ALTER TABLE photos ADD COLUMN title TEXT`).run();
-}
-
-// API: 写真アップロード
+// ----------------------------------
+// フォルダ (自分専用) API
+// ----------------------------------
 app.post("/api/photo/upload", upload.single("image"), (req, res) => {
-  if (!req.session.user)
-    return res
-      .status(401)
-      .json({ success: false, message: "ログインしてください" });
-
-  if (!req.file)
-    return res
-      .status(400)
-      .json({ success: false, message: "画像がありません" });
-
+  if (!req.session.user) return res.status(401).json({ success: false });
   const { lat, lng, title } = req.body;
   const filepath = "/uploads/" + req.file.filename;
-
   const info = db
     .prepare(
-      `INSERT INTO photos (user_email, filepath, latitude, longitude, title, created_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'))`
+      `INSERT INTO photos (user_email, filepath, latitude, longitude, title, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`
     )
     .run(req.session.user.email, filepath, lat, lng, title || "");
-
   res.json({ success: true, filepath, id: info.lastInsertRowid });
 });
 
-// API: 写真一覧
 app.get("/api/photo/list", (req, res) => {
-  if (!req.session.user)
-    return res
-      .status(401)
-      .json({ success: false, message: "ログインしてください" });
-
+  if (!req.session.user) return res.status(401).json({ success: false });
   const rows = db
     .prepare(
-      `SELECT id, filepath, latitude, longitude, title, created_at
-     FROM photos
-     WHERE user_email = ?
-     ORDER BY created_at DESC`
+      "SELECT * FROM photos WHERE user_email = ? ORDER BY created_at DESC"
     )
     .all(req.session.user.email);
-
   res.json({ success: true, photos: rows });
 });
 
-// 復元処理
-const loadPhotos = async () => {
-  const res = await fetch("/api/photo/list");
-  const j = await res.json();
-  if (!j.success) return;
+// ----------------------------------
+// ★ SNS (みんなの投稿) API
+// ----------------------------------
 
-  j.photos.forEach((p) => {
-    const marker = L.marker([p.latitude, p.longitude]).addTo(map);
-    marker.bindPopup(p.title || "");
-    marker.on("click", () => {
-      arImage.style.backgroundImage = `url(${p.filepath})`;
-      arPreview.classList.remove("hidden");
-    });
-    markersById.set(p.id, { marker, data: p });
-  });
-};
-
-// -------------------------------------------------------
-// ★ API: 写真アップロード
-// -------------------------------------------------------
-app.post("/api/photo/upload", upload.single("image"), (req, res) => {
-  if (!req.session.user)
-    return res
-      .status(401)
-      .json({ success: false, message: "ログインしてください" });
-
-  if (!req.file)
-    return res
-      .status(400)
-      .json({ success: false, message: "画像がありません" });
-
-  const { lat, lng } = req.body;
-  const filepath = "/uploads/" + req.file.filename;
-
-  db.prepare(
-    `INSERT INTO photos (user_email, filepath, latitude, longitude, created_at)
-     VALUES (?, ?, ?, ?, datetime('now'))`
-  ).run(req.session.user.email, filepath, lat, lng);
-
-  res.json({ success: true, filepath });
-});
-
-// -------------------------------------------------------
-// ★ API: 自分の写真一覧
-// -------------------------------------------------------
-app.get("/api/photo/list", (req, res) => {
-  if (!req.session.user)
-    return res
-      .status(401)
-      .json({ success: false, message: "ログインしてください" });
-
-  const rows = db
+// 全ユーザーの投稿を取得
+app.get("/api/all_posts", (req, res) => {
+  const user_email = req.session.user ? req.session.user.email : null;
+  const posts = db
     .prepare(
-      `SELECT id, filepath, latitude, longitude, created_at
-     FROM photos
-     WHERE user_email = ?
-     ORDER BY created_at DESC`
+      `
+    SELECT p.id, p.caption, p.created_at, p.user_email as user, ph.filepath,
+           (CASE WHEN p.user_email = ? THEN 1 ELSE 0 END) as is_mine
+    FROM posts p
+    JOIN photos ph ON p.photo_id = ph.id
+    ORDER BY p.created_at DESC
+  `
     )
-    .all(req.session.user.email);
+    .all(user_email);
 
-  res.json({ success: true, photos: rows });
+  const my_likes = user_email
+    ? db
+        .prepare("SELECT post_id FROM likes WHERE user_email = ?")
+        .all(user_email)
+        .map((l) => l.post_id)
+    : [];
+  res.json({ success: true, posts, my_likes });
 });
 
-// -------------------------------------------------------
-// ★ API: 写真削除（ユーザー単位、ファイル削除 + DB削除）
-// -------------------------------------------------------
-app.delete("/api/photo/:id", (req, res) => {
-  if (!req.session.user)
-    return res
-      .status(401)
-      .json({ success: false, message: "ログインしてください" });
-
-  const id = req.params.id;
-
-  // ① まずその写真が「自分のものか」を確認
-  const row = db
-    .prepare("SELECT * FROM photos WHERE id = ? AND user_email = ?")
-    .get(id, req.session.user.email);
-
-  if (!row)
-    return res.status(404).json({
-      success: false,
-      message: "写真が見つかりません（または他ユーザーの写真です）",
-    });
-
-  // ② ファイル削除
-  const filePath = path.join(__dirname, row.filepath.replace(/^\//, ""));
+// SNSへシェア (動画でエラーになってたやつ！)
+app.post("/api/sns/post", (req, res) => {
+  if (!req.session.user) return res.status(401).json({ success: false });
+  const { photo_id, caption } = req.body;
   try {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    db.prepare(
+      `INSERT INTO posts (user_email, photo_id, caption, created_at) VALUES (?, ?, ?, datetime('now'))`
+    ).run(req.session.user.email, photo_id, caption);
+    res.json({ success: true });
   } catch (err) {
-    console.error("file delete error:", err);
+    res.status(500).json({ success: false });
   }
+});
 
-  // ③ DBから削除
-  db.prepare("DELETE FROM photos WHERE id = ?").run(id);
+// SNS投稿の削除
+app.post("/api/sns/delete", (req, res) => {
+  if (!req.session.user) return res.status(401).json({ success: false });
+  db.prepare("DELETE FROM posts WHERE id = ? AND user_email = ?").run(
+    req.body.post_id,
+    req.session.user.email
+  );
+  res.json({ success: true });
+});
 
-  return res.json({ success: true });
+// いいね機能
+app.post("/api/like", (req, res) => {
+  if (!req.session.user) return res.status(401).json({ success: false });
+  const { post_id, action } = req.body;
+  if (action === "like") {
+    db.prepare(
+      "INSERT OR IGNORE INTO likes (user_email, post_id) VALUES (?, ?)"
+    ).run(req.session.user.email, post_id);
+  } else {
+    db.prepare("DELETE FROM likes WHERE user_email = ? AND post_id = ?").run(
+      req.session.user.email,
+      post_id
+    );
+  }
+  res.json({ success: true });
 });
 
 // ----------------------------------
 // サーバー起動
 // ----------------------------------
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
