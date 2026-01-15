@@ -1,112 +1,41 @@
-<link
-  rel="stylesheet"
-  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<main class="main-content">
+  <div id="map"></div>
 
-<div id="loading-screen" class="loading-overlay">
-  <div class="loader-content">
-    <div class="scanner-circle"></div>
-    <p class="loading-text">－ 読み込み中 －</p>
-  </div>
-</div>
-
-<div class="page-wrapper">
-  <header class="header">
-    <h2><i class="fa-solid fa-map-location-dot"></i> 巡礼地図</h2>
-  </header>
-
-  <main class="main-content">
-    <div id="map"></div>
-
-    <div class="camera-section">
-      <div class="camera-container">
-        <video
-          id="camera-video"
-          class="camera-video"
-          autoplay
-          playsinline
-        ></video>
-        <canvas id="camera-canvas" class="hidden"></canvas>
-
-        <div id="graffiti-tools" class="graffiti-tools hidden">
-          <div class="palette">
-            <div
-              class="swatch active"
-              style="background: #e63946"
-              data-color="#e63946"
-            ></div>
-            <div
-              class="swatch"
-              style="background: #f1faee"
-              data-color="#f1faee"
-            ></div>
-            <div
-              class="swatch"
-              style="background: #a8dadc"
-              data-color="#a8dadc"
-            ></div>
-            <div
-              class="swatch"
-              style="background: #ffb703"
-              data-color="#ffb703"
-            ></div>
-          </div>
-          <button id="camera-clear" class="clear-btn">筆を洗う</button>
-        </div>
+  <div class="camera-section">
+    <div class="camera-container">
+      <video
+        id="camera-video"
+        class="camera-video"
+        autoplay
+        playsinline
+      ></video>
+      <canvas id="camera-canvas" class="hidden"></canvas>
+      <div id="graffiti-tools" class="graffiti-tools hidden">
+        <button id="camera-clear" class="clear-btn">筆を洗う</button>
       </div>
     </div>
 
-    <div id="ar-preview" class="ar-preview hidden">
-      <div id="ar-image" class="ar-image"></div>
-      <div class="ar-actions">
-        <button id="ar-close" class="wa-btn">
-          <i class="fa-solid fa-xmark"></i> 閉じる
-        </button>
-        <button id="ar-delete" class="wa-btn danger">
-          <i class="fa-solid fa-trash-can"></i> 削除
-        </button>
-      </div>
-    </div>
-  </main>
-  <footer class="wa-footer">
-    <div class="nav-grid" id="footer-default">
-      <button id="goto-sns" class="nav-item">
-        <i class="fa-solid fa-comments"></i><span>瓦版</span>
-      </button>
-      <button id="camera-start" class="nav-item highlight">
-        <i class="fa-solid fa-camera"></i><span>写し絵</span>
-      </button>
-      <button id="goto-folder" class="nav-item">
-        <i class="fa-solid fa-box-archive"></i><span>蔵</span>
-      </button>
-    </div>
-
-    <div class="nav-grid hidden" id="footer-camera">
-      <button id="camera-close" class="nav-item danger">
+    <div id="camera-controls" class="camera-controls hidden">
+      <button id="camera-close" class="ctrl-btn danger">
         <i class="fa-solid fa-xmark"></i><span>中止</span>
       </button>
-      <button id="camera-shoot" class="nav-item action">
-        <div class="shutter-btn"><i class="fa-solid fa-circle-dot"></i></div>
-        <span>撮影</span>
+      <button id="camera-shoot" class="ctrl-btn action">
+        <i class="fa-solid fa-circle-dot"></i><span>撮影</span>
       </button>
-      <button id="camera-save-edit" class="nav-item success hidden">
+      <button id="camera-save-edit" class="ctrl-btn success hidden">
         <i class="fa-solid fa-cloud-arrow-up"></i><span>保存</span>
       </button>
     </div>
-
-    <button id="logout-button" class="logout-link">ログアウト</button>
-  </footer>
-</div>
+  </div>
+</main>
 <style>
-  /* --- 0. 変数と基本設定 --- */
   :root {
-    --wa-red: #8b0000; /* 漆の赤 */
-    --wa-black: #1a1a1a; /* 墨・漆黒 */
-    --wa-gold: #d4af37; /* 金箔 */
-    --wa-green: #2d5a27; /* 松・深緑 */
-    --wa-bg: #f5f5f0; /* 和紙 */
-    --wa-danger: #e63946; /* 警告 */
+    --wa-red: #8b0000;
+    --wa-black: #1a1a1a;
+    --wa-gold: #d4af37;
+    --wa-green: #2d5a27;
+    --wa-bg: #f5f5f0;
+    --wa-danger: #e63946;
   }
 
   html,
@@ -120,65 +49,64 @@
     overflow-x: hidden;
   }
 
-  /* --- 1. ロード画面（和風スキャナー） --- */
-  .loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(circle, #2c3e50, var(--wa-black));
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 10000;
-    transition: opacity 0.8s ease-out, visibility 0.8s;
-  }
-
-  .loading-hidden {
-    opacity: 0 !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-  }
-
-  .scanner-circle {
-    width: 80px;
-    height: 80px;
-    border: 4px solid var(--wa-gold);
-    border-top: 4px solid transparent;
-    border-radius: 50%;
-    animation: spin 1.5s linear infinite;
-    box-shadow: 0 0 15px var(--wa-gold);
-  }
-
-  .loading-text {
-    color: var(--wa-gold);
-    font-family: monospace;
-    letter-spacing: 5px;
-    margin-top: 20px;
-    animation: blink 0.8s infinite;
-  }
-
-  /* --- 2. ヘッダー --- */
+  /* --- ヘッダー --- */
   .header {
     background: var(--wa-black);
     color: var(--wa-gold);
     border-bottom: 3px solid var(--wa-gold);
-    padding: 12px;
-    text-align: center;
+    padding: 8px 15px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
     position: relative;
     z-index: 100;
   }
 
-  /* --- 3. メインビジュアル（地図・カメラ） --- */
+  .header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .header-title {
+    margin: 0;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-exit-btn {
+    background: transparent;
+    border: 1px solid var(--wa-gold);
+    color: var(--wa-gold);
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: 0.3s;
+  }
+
+  .header-exit-btn:hover {
+    background: var(--wa-red);
+    color: white;
+  }
+
+  /* --- メインコンテンツ & 地図 --- */
   #map {
     width: 100%;
     height: 35vh;
     border-bottom: 4px solid var(--wa-black);
-    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
     z-index: 1;
+  }
+
+  /* --- カメラセクション --- */
+  .camera-section {
+    width: 100%;
+    background: var(--wa-black);
   }
 
   .camera-container {
@@ -187,7 +115,6 @@
     aspect-ratio: 4 / 3;
     background: #000;
     overflow: hidden;
-    border-bottom: 4px solid var(--wa-black);
   }
 
   .camera-video {
@@ -196,7 +123,6 @@
     object-fit: cover;
     display: none;
   }
-
   #camera-canvas {
     position: absolute;
     top: 0;
@@ -207,7 +133,98 @@
     touch-action: none;
   }
 
-  /* --- 4. 操作ボタン（和風フッター） --- */
+  /* --- 【新星】カメラ操作パネル --- */
+  .camera-controls {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 15px 10px;
+    background: var(--wa-black);
+    border-top: 1px solid rgba(212, 175, 55, 0.3); /* 金色の細い線 */
+    border-bottom: 4px solid var(--wa-black);
+  }
+
+  .ctrl-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--wa-gold);
+    color: #fff;
+    padding: 10px 5px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    min-width: 80px;
+    transition: 0.2s;
+  }
+
+  /* 撮影ボタン：特大・印章スタイル */
+  .ctrl-btn.action {
+    background: var(--wa-red);
+    border: 3px double var(--wa-gold);
+    height: 70px;
+    width: 70px;
+    border-radius: 50%;
+    transform: translateY(-5px); /* 少し浮かせるぜ */
+    box-shadow: 0 4px 15px rgba(139, 0, 0, 0.6);
+    justify-content: center;
+    min-width: auto;
+  }
+  .ctrl-btn.action i {
+    font-size: 28px;
+  }
+
+  .ctrl-btn.danger {
+    color: #ff5a5a;
+    border-color: #ff5a5a;
+  }
+  .ctrl-btn.success {
+    background: var(--wa-green);
+    border-color: var(--wa-gold);
+    color: white;
+  }
+
+  /* --- 落書きツール（プレビュー画面に重ねる） --- */
+  .graffiti-tools {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 8px;
+    border-radius: 20px;
+  }
+  .palette {
+    display: flex;
+    gap: 8px;
+  }
+  .swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    cursor: pointer;
+  }
+  .swatch.active {
+    transform: scale(1.2);
+    border-color: var(--wa-gold);
+  }
+  .clear-btn {
+    background: #fff;
+    border: none;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  /* --- フッターナビ（不変の基盤） --- */
   .wa-footer {
     position: fixed;
     bottom: 0;
@@ -222,10 +239,8 @@
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 10px;
-    padding: 15px 10px;
-    align-items: end;
+    padding: 12px 10px;
   }
-
   .nav-item {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--wa-gold);
@@ -233,88 +248,51 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 12px 5px;
+    padding: 8px 5px;
     cursor: pointer;
-    transition: 0.2s;
     border-radius: 4px;
   }
-
-  .nav-item i {
-    font-size: 22px;
-    margin-bottom: 6px;
-  }
-  .nav-item span {
-    font-size: 11px;
-    font-weight: bold;
-  }
-
-  /* 起動ボタン（赤漆） */
   .nav-item.highlight {
     background: var(--wa-red);
-    border-color: var(--wa-gold);
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
   }
 
-  /* 撮影ボタン（特大・印章スタイル） */
-  .nav-item.action {
-    background: var(--wa-red);
-    border: 4px double var(--wa-gold);
-    border-radius: 50%;
-    height: 85px;
-    width: 85px;
-    transform: translateY(-15px); /* フッターから飛び出させるぜ */
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6), 0 0 10px var(--wa-red);
-  }
-  .nav-item.action i {
-    font-size: 32px;
-    margin-bottom: 2px;
-  }
-
-  .nav-item.danger {
-    color: #ff5a5a;
-    border-color: #ff5a5a;
-  }
-  .nav-item.success {
-    background: var(--wa-green);
-    border-color: var(--wa-gold);
-  }
-
-  /* --- 5. その他UI --- */
-  .ar-preview {
-    padding: 15px;
-    background: white;
-    border: 2px solid var(--wa-black);
-    margin: 10px;
-    border-radius: 8px;
-  }
-
-  .logout-link {
+  /* --- 共通・読み込み --- */
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
-    background: none;
-    border: none;
-    color: #666;
-    font-size: 11px;
-    padding: 8px;
-    text-decoration: underline;
-    cursor: pointer;
+    height: 100%;
+    background: radial-gradient(circle, #2c3e50, var(--wa-black));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+  }
+  .loading-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transition: 0.5s;
+  }
+  .scanner-circle {
+    width: 60px;
+    height: 60px;
+    border: 4px solid var(--wa-gold);
+    border-top: 4px solid transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
   }
 
   .hidden {
     display: none !important;
   }
 
-  /* --- 6. アニメーション --- */
   @keyframes spin {
     to {
       transform: rotate(360deg);
-    }
-  }
-  @keyframes blink {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0;
     }
   }
 </style>
