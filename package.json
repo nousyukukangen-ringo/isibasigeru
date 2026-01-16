@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/nousyukukangen-ringo/isibasigeru#readme",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@simplewebauthn/server": "^13.2.2",
     "base64url": "^3.0.1",
     "bcrypt": "^6.0.0",

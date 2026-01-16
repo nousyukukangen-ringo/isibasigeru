@@ -1,148 +1,312 @@
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+/>
+
 <div class="app-container">
-    <header>
-        <div class="search-bar">
-            <i class="fas fa-search"></i>
-            <input type="text" class="search-input" placeholder="ユーザーやキャプションで検索...">
-        </div>
-    </header>
-
-    <main class="feed" id="sns-feed"></main>
-
-    <footer>
-        <button class="footer-btn" id="open-post-selector">
-            <i class="fas fa-plus-circle"></i>
-            <span>投稿</span>
-        </button>
-        <button class="footer-btn" id="back-map">
-            <i class="fas fa-map-marked-alt"></i>
-            <span>マップ</span>
-        </button>
-    </footer>
-
-    <div class="modal-overlay" id="postSelectorModal">
-        <div class="modal-box wide-modal">
-            <h3>フォルダから選ぶ</h3>
-            <div id="my-folder-selection" class="selection-grid">
-                <p class="loading-msg">写真を読み込み中...</p>
-            </div>
-            <div class="modal-buttons">
-                <button class="btn-cancel" onclick="closePostSelector()">キャンセル</button>
-            </div>
-        </div>
+  <header class="wa-header">
+    <div class="search-bar">
+      <i class="fas fa-search"></i>
+      <input
+        type="text"
+        class="search-input"
+        id="sns-search"
+        placeholder="仲間や写し絵を検索..."
+      />
     </div>
+  </header>
 
-    <div class="modal-overlay" id="commentModal">
-        <div class="modal-box">
-            <h3>SNSへシェア</h3>
-            <div id="selected-preview" class="selected-preview"></div>
-            <textarea id="commentText" placeholder="今の気持ちを書き残そうぜ！"></textarea>
-            <div class="modal-buttons">
-                <button class="btn-cancel" onclick="closeCommentModal()">戻る</button>
-                <button class="btn-send" id="final-post-btn">シェアする</button>
-            </div>
-        </div>
+  <main class="feed" id="sns-feed"></main>
+
+  <footer class="wa-footer">
+    <button class="footer-btn" id="open-post-selector">
+      <i class="fas fa-plus-circle"></i>
+      <span>投稿</span>
+    </button>
+    <button class="footer-btn" id="back-map">
+      <i class="fas fa-map-marked-alt"></i>
+      <span>地図へ戻る</span>
+    </button>
+  </footer>
+
+  <div class="modal-overlay" id="postSelectorModal">
+    <div class="modal-box wide-modal">
+      <h3 class="wa-title">フォルダから選ぶ</h3>
+      <div id="my-folder-selection" class="selection-grid">
+        <p class="loading-msg">写真を読み込み中...</p>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" onclick="closePostSelector()">閉じる</button>
+      </div>
     </div>
+  </div>
+
+  <div class="modal-overlay" id="commentModal">
+    <div class="modal-box">
+      <h3 class="wa-title">投稿</h3>
+      <div id="selected-preview" class="selected-preview"></div>
+      <textarea
+        id="commentText"
+        placeholder="今の気持ちを書き残そうぜ、ブラザー！"
+      ></textarea>
+      <div class="modal-buttons">
+        <button class="btn-cancel" onclick="closeCommentModal()">戻る</button>
+        <button class="btn-send" id="final-post-btn">シェアする</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
-    /* --- 基本レイアウト --- */
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
-    body { background-color: #f0f2f5; }
-    
-    .app-container {
-        width: 100%;
-        max-width: 600px;
-        margin: 0 auto;
-        min-height: 100vh;
-        padding-top: 70px;
-        padding-bottom: 80px;
-    }
+  /* --- 基本レイアウト --- */
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: "Sawarabi Mincho", serif;
+  }
+  body {
+    background-color: #f5f5f0;
+    color: #1a1a1a;
+  }
 
-    /* --- ヘッダー（検索） --- */
-    header {
-        position: fixed; top: 0; width: 100%; max-width: 600px;
-        background: #fff; padding: 12px; z-index: 100;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    .search-bar {
-        background: #f0f2f5; border-radius: 20px; padding: 8px 15px;
-        display: flex; align-items: center; gap: 10px;
-    }
-    .search-input {
-        border: none; background: transparent; width: 100%; outline: none; font-size: 0.9rem;
-    }
+  .app-container {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 100vh;
+    padding-top: 70px;
+    padding-bottom: 80px;
+  }
 
-    /* --- 投稿フィード（カード） --- */
-    .feed { display: flex; flex-direction: column; gap: 15px; padding: 10px; }
-    
-    .post-card {
-        background: #fff; border-radius: 12px; overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .post-header { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
-    .username { font-weight: bold; color: #1c1e21; font-size: 0.95rem; }
-    
-    .post-image {
-        width: 100%; aspect-ratio: 1 / 1;
-        background-size: cover; background-position: center;
-    }
-    
-    .post-footer { padding: 12px; }
-    .post-caption { margin-top: 8px; font-size: 0.95rem; line-height: 1.4; color: #1c1e21; }
-    
-    /* --- アクションボタン（いいね・削除） --- */
-    .post-actions { display: flex; gap: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-    .action-btn {
-        background: none; border: none; cursor: pointer;
-        font-size: 1.2rem; color: #65676b; transition: transform 0.2s;
-        display: flex; align-items: center; gap: 5px;
-    }
-    .action-btn:active { transform: scale(1.2); }
-    .like-btn.liked { color: #e41e3f; }
-    .del-post-btn { margin-left: auto; color: #bcc0c4; }
-    .del-post-btn:hover { color: #fa3e3e; }
+  /* --- 和風ヘッダー --- */
+  .wa-header {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    max-width: 600px;
+    background: #1a1a1a;
+    padding: 12px;
+    z-index: 100;
+    border-bottom: 2px solid #d4af37;
+  }
+  .search-bar {
+    background: #fff;
+    border-radius: 4px;
+    padding: 8px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .search-input {
+    border: none;
+    width: 100%;
+    outline: none;
+    font-size: 0.9rem;
+  }
 
-    /* --- フッター --- */
-    footer {
-        position: fixed; bottom: 0; width: 100%; max-width: 600px;
-        background: #fff; height: 65px; display: flex;
-        justify-content: space-around; align-items: center;
-        box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
-    }
-    .footer-btn {
-        background: none; border: none; color: #65676b;
-        display: flex; flex-direction: column; align-items: center; font-size: 0.7rem; gap: 4px;
-    }
-    .footer-btn i { font-size: 1.4rem; }
-    #open-post-selector { color: #1877f2; }
+  /* --- フィード（投稿カード） --- */
+  .feed {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 10px;
+  }
 
-    /* --- モーダル & グリッド --- */
-    .modal-overlay {
-        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center;
+  .post-card {
+    background: #fff;
+    border: 1px solid #d4af37;
+    border-radius: 2px;
+    overflow: hidden;
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.1);
+  }
+  .post-header {
+    padding: 10px 15px;
+    background: #fdfdfd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+  }
+  .username {
+    font-weight: bold;
+    color: #8b0000;
+    font-size: 1rem;
+  }
+
+  .post-image {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background-size: cover;
+    background-position: center;
+  }
+
+  .post-footer {
+    padding: 15px;
+  }
+  .post-caption {
+    margin-top: 10px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #333;
+  }
+
+  /* --- 🔥 アクションボタン（いいね追加版） --- */
+  .post-actions {
+    display: flex;
+    gap: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 12px;
+  }
+  .action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.4rem;
+    color: #666;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .action-btn span {
+    font-size: 0.9rem;
+    font-weight: bold;
+  }
+
+  /* いいね済み（赤漆） */
+  .like-btn.liked {
+    color: #e63946;
+    animation: pop 0.3s ease;
+  }
+  .like-btn.liked i {
+    font-weight: 900;
+  }
+
+  .del-post-btn {
+    margin-left: auto;
+    color: #ccc;
+  }
+  .del-post-btn:hover {
+    color: #8b0000;
+  }
+
+  /* --- 和風フッター --- */
+  .wa-footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    max-width: 600px;
+    background: #1a1a1a;
+    height: 70px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    border-top: 2px solid #d4af37;
+  }
+  .footer-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 0.75rem;
+    gap: 5px;
+  }
+  .footer-btn i {
+    font-size: 1.5rem;
+    color: #d4af37;
+  }
+
+  /* --- モーダル関係 --- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-box {
+    background: #fff;
+    width: 90%;
+    max-width: 450px;
+    padding: 20px;
+    border-radius: 4px;
+    border: 3px double #d4af37;
+  }
+  .wa-title {
+    border-left: 5px solid #8b0000;
+    padding-left: 10px;
+    margin-bottom: 15px;
+    color: #8b0000;
+  }
+
+  .selection-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    max-height: 350px;
+    overflow-y: auto;
+  }
+  .selectable-thumb {
+    width: 100%;
+    aspect-ratio: 1/1;
+    background-size: cover;
+    border-radius: 4px;
+    border: 2px solid transparent;
+  }
+  .selectable-thumb:hover {
+    border-color: #d4af37;
+  }
+
+  .selected-preview {
+    width: 100%;
+    height: 220px;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid #ddd;
+    margin-bottom: 15px;
+  }
+  textarea {
+    width: 100%;
+    height: 90px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin-bottom: 15px;
+  }
+
+  .btn-send {
+    background: #8b0000;
+    color: #fff;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .btn-cancel {
+    background: #eee;
+    color: #666;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  @keyframes pop {
+    0% {
+      transform: scale(1);
     }
-    .modal-box {
-        background: #fff; width: 90%; max-width: 450px; padding: 20px; border-radius: 15px;
+    50% {
+      transform: scale(1.4);
     }
-    .selection-grid {
-        display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
-        max-height: 350px; overflow-y: auto; margin-top: 15px;
+    100% {
+      transform: scale(1);
     }
-    .selectable-thumb {
-        width: 100%; aspect-ratio: 1/1; background-size: cover;
-        border-radius: 8px; cursor: pointer; border: 2px solid transparent;
-    }
-    .selectable-thumb:hover { border-color: #1877f2; }
-    
-    .selected-preview {
-        width: 100%; height: 200px; background-size: cover;
-        background-position: center; border-radius: 10px; margin: 15px 0;
-    }
-    textarea {
-        width: 100%; height: 80px; padding: 10px; border: 1px solid #ddd;
-        border-radius: 8px; resize: none; margin-bottom: 15px;
-    }
-    .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; }
-    .btn-send { background: #1877f2; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; }
-    .btn-cancel { background: #f0f2f5; color: #65676b; border: none; padding: 10px 20px; border-radius: 8px; }
+  }
 </style>
